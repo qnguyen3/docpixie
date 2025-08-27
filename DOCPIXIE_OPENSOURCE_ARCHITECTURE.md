@@ -369,7 +369,7 @@ class OpenAIProvider(BaseProvider):
     
     def __init__(self, config: DocPixieConfig):
         self.client = AsyncOpenAI(api_key=config.openai_api_key)
-        self.model = config.openai_vision_model
+        self.model = config.vision_model
     
     async def process_text_messages(
         self, 
@@ -379,7 +379,7 @@ class OpenAIProvider(BaseProvider):
     ) -> str:
         """Process text-only messages through OpenAI API"""
         response = await self.client.chat.completions.create(
-            model=self.config.openai_model_pro,
+            model=self.config.pro_model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature

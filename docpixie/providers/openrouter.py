@@ -1,5 +1,6 @@
 """
-OpenAI GPT-4V provider for raw API operations
+OpenRouter provider for raw API operations
+Uses OpenAI client with OpenRouter's API endpoint
 """
 
 import logging
@@ -11,19 +12,22 @@ from ..core.config import DocPixieConfig
 logger = logging.getLogger(__name__)
 
 
-class OpenAIProvider(BaseProvider):
-    """OpenAI GPT-4V provider for raw API operations"""
+class OpenRouterProvider(BaseProvider):
+    """OpenRouter provider for raw API operations"""
     
     def __init__(self, config: DocPixieConfig):
         super().__init__(config)
         
-        if not config.openai_api_key:
-            raise ValueError("OpenAI API key is required")
+        if not config.openrouter_api_key:
+            raise ValueError("OpenRouter API key is required")
         
         # Import here to make it optional dependency
         try:
             from openai import AsyncOpenAI
-            self.client = AsyncOpenAI(api_key=config.openai_api_key)
+            self.client = AsyncOpenAI(
+                api_key=config.openrouter_api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
         except ImportError:
             raise ImportError("OpenAI library not found. Install with: pip install openai")
         
@@ -35,7 +39,7 @@ class OpenAIProvider(BaseProvider):
         max_tokens: int = 300, 
         temperature: float = 0.3
     ) -> str:
-        """Process text-only messages through OpenAI API"""
+        """Process text-only messages through OpenRouter API"""
         try:
             response = await self.client.chat.completions.create(
                 model=self.config.pro_model,  # Use pro model for text-only
@@ -45,13 +49,13 @@ class OpenAIProvider(BaseProvider):
             )
             
             result = response.choices[0].message.content.strip()
-            logger.debug(f"OpenAI text response: {result[:50]}...")
+            logger.debug(f"OpenRouter text response: {result[:50]}...")
             
             return result
             
         except Exception as e:
-            logger.error(f"OpenAI text processing failed: {e}")
-            raise ProviderError(f"Text processing failed: {e}", "openai")
+            logger.error(f"OpenRouter text processing failed: {e}")
+            raise ProviderError(f"Text processing failed: {e}", "openrouter")
     
     async def process_multimodal_messages(
         self, 
@@ -59,7 +63,7 @@ class OpenAIProvider(BaseProvider):
         max_tokens: int = 300, 
         temperature: float = 0.3
     ) -> str:
-        """Process multimodal messages (text + images) through OpenAI Vision API"""
+        """Process multimodal messages (text + images) through OpenRouter API"""
         try:
             # Process messages to convert image paths to data URLs
             processed_messages = self._prepare_openai_messages(messages)
@@ -72,16 +76,16 @@ class OpenAIProvider(BaseProvider):
             )
             
             result = response.choices[0].message.content.strip()
-            logger.debug(f"OpenAI multimodal response: {result[:50]}...")
+            logger.debug(f"OpenRouter multimodal response: {result[:50]}...")
             
             return result
             
         except Exception as e:
-            logger.error(f"OpenAI multimodal processing failed: {e}")
-            raise ProviderError(f"Multimodal processing failed: {e}", "openai")
+            logger.error(f"OpenRouter multimodal processing failed: {e}")
+            raise ProviderError(f"Multimodal processing failed: {e}", "openrouter")
     
     def _prepare_openai_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Prepare messages for OpenAI API by converting image paths to data URLs"""
+        """Prepare messages for OpenRouter API by converting image paths to data URLs"""
         processed_messages = []
         
         for message in messages:
@@ -96,7 +100,7 @@ class OpenAIProvider(BaseProvider):
                     if content_item["type"] == "text":
                         processed_content.append(content_item)
                     elif content_item["type"] == "image_path":
-                        # Convert image path to OpenAI format
+                        # Convert image path to OpenRouter format (same as OpenAI)
                         image_path = content_item["image_path"]
                         if self._validate_image_path(image_path):
                             image_data_url = self._create_image_data_url(image_path)

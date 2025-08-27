@@ -7,6 +7,7 @@ from typing import Union
 from .base import BaseProvider
 from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
+from .openrouter import OpenRouterProvider
 from ..core.config import DocPixieConfig
 
 
@@ -27,13 +28,15 @@ def create_provider(config: DocPixieConfig) -> BaseProvider:
         return OpenAIProvider(config)
     elif config.provider == "anthropic":
         return AnthropicProvider(config)
+    elif config.provider == "openrouter":
+        return OpenRouterProvider(config)
     else:
         raise ValueError(f"Unsupported provider: {config.provider}")
 
 
 def get_available_providers() -> list[str]:
     """Get list of available provider names"""
-    return ["openai", "anthropic"]
+    return ["openai", "anthropic", "openrouter"]
 
 
 def validate_provider_config(provider: str, config: DocPixieConfig) -> bool:
@@ -56,15 +59,22 @@ def validate_provider_config(provider: str, config: DocPixieConfig) -> bool:
     if provider == "openai":
         if not config.openai_api_key:
             raise ValueError("OpenAI API key is required")
-        if not config.openai_vision_model:
-            raise ValueError("OpenAI vision model is required")
+        if not config.vision_model:
+            raise ValueError("Vision model is required")
         return True
     
     elif provider == "anthropic":
         if not config.anthropic_api_key:
             raise ValueError("Anthropic API key is required")
-        if not config.anthropic_model_pro:
-            raise ValueError("Anthropic model is required")
+        if not config.vision_model:
+            raise ValueError("Vision model is required")
+        return True
+    
+    elif provider == "openrouter":
+        if not config.openrouter_api_key:
+            raise ValueError("OpenRouter API key is required")
+        if not config.vision_model:
+            raise ValueError("Vision model is required")
         return True
     
     return False

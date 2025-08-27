@@ -348,12 +348,12 @@ class OpenAIProvider(BaseProvider):
     
     def __init__(self, config: DocPixieConfig):
         self.client = AsyncOpenAI(api_key=config.openai_api_key)
-        self.model = config.openai_vision_model
+        self.model = config.vision_model
     
     async def process_text_messages(self, messages, max_tokens=300, temperature=0.3):
         """Process text-only messages through OpenAI API"""
         response = await self.client.chat.completions.create(
-            model=self.config.openai_model_pro,
+            model=self.config.pro_model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature
@@ -381,7 +381,7 @@ class AnthropicProvider(BaseProvider):
     
     def __init__(self, config: DocPixieConfig):
         self.client = anthropic.AsyncAnthropic(api_key=config.anthropic_api_key)
-        self.model = config.anthropic_model_pro  # Use Pro model for vision
+        self.model = config.vision_model  # Use vision model for multimodal operations
     
     async def process_text_messages(self, messages, max_tokens=300, temperature=0.3):
         """Process text-only messages through Anthropic API"""

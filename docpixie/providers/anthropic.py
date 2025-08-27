@@ -27,7 +27,7 @@ class AnthropicProvider(BaseProvider):
         except ImportError:
             raise ImportError("Anthropic library not found. Install with: pip install anthropic")
         
-        self.model = config.anthropic_model_pro  # Use Pro model for vision
+        self.model = config.vision_model  # Use vision model for multimodal operations
     
     async def process_text_messages(
         self, 
