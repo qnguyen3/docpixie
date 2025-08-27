@@ -1,0 +1,17 @@
+# DocPixie Open Source Library Dependencies
+
+# Core dependencies
+Pillow>=10.0.0          # Image processing
+PyMuPDF>=1.23.0         # PDF processing (replaces pdf2image)
+
+# Optional AI provider dependencies
+openai>=1.0.0           # OpenAI GPT-4V (optional)
+anthropic>=0.10.0       # Anthropic Claude (optional)
+
+# Development and testing
+pytest>=7.0.0           # Testing framework
+pytest-asyncio>=0.21.0  # Async testing support
+
+# Optional dependencies for different storage backends
+# boto3>=1.28.0         # AWS S3 support (optional)
+# azure-storage-blob    # Azure Blob support (optional)
