@@ -9,6 +9,7 @@ import logging
 from ..providers import BaseProvider, create_provider
 from ..models.document import Document, Page
 from ..core.config import DocPixieConfig
+from .prompts import PAGE_SUMMARIZATION_PROMPT, SYSTEM_VISION_EXPERT
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +73,14 @@ class PageSummarizer:
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a document analysis expert. Analyze the document page image and create a concise but comprehensive summary that captures the key information, topics, and content. Focus on what someone would need to know to determine if this page is relevant to their query."
+                    "content": SYSTEM_VISION_EXPERT
                 },
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "Please analyze this document page and provide a concise summary of its content, including key topics, data, and information present."
+                            "text": PAGE_SUMMARIZATION_PROMPT
                         },
                         {
                             "type": "image_path",
