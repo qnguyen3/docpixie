@@ -33,7 +33,6 @@ DocPixieConfig(storage_type="local", local_storage_path="./data")
 - `max_agent_iterations`: cap adaptive replanning iterations (default 5)
 - `max_pages_per_task`: soft limit for per-task page analysis (default 6)
 - `max_tasks_per_plan`: cap initial tasks (default 4)
-- `enable_conversation`: enable conversation-aware processing (default True)
 
 ## Conversation Settings
 
@@ -64,10 +63,7 @@ Recognized env vars include:
 
 - `DOCPIXIE_PROVIDER` → `provider`
 - `DOCPIXIE_STORAGE_PATH` → `local_storage_path`
-- `DOCPIXIE_FLASH_MAX_PAGES` → `flash_max_pages`
-- `DOCPIXIE_PRO_MAX_PAGES` → `pro_max_pages`
 - `DOCPIXIE_JPEG_QUALITY` → `jpeg_quality`
-- `DOCPIXIE_ENABLE_CACHE` → `enable_cache`
 - `DOCPIXIE_LOG_LEVEL` → `log_level`
 
 Provider-specific API keys use the variables listed in Providers and API Keys above.
