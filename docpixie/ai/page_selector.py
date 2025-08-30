@@ -11,7 +11,7 @@ from ..models.document import Page
 from ..providers.base import BaseProvider
 from ..core.config import DocPixieConfig
 from ..exceptions import PageSelectionError
-from .prompts import SYSTEM_PAGE_SELECTOR, VISION_PAGE_SELECTION_PROMPT
+from .prompts import SYSTEM_PAGE_SELECTOR, USER_VISION_ANALYSIS, VISION_PAGE_SELECTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -84,21 +84,12 @@ class VisionPageSelector:
             {
                 "role": "system",
                 "content": SYSTEM_PAGE_SELECTOR
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": VISION_PAGE_SELECTION_PROMPT.format(query=query)
-                    }
-                ]
             }
         ]
-
+        user_content = []
         # Add ALL page images to the message for vision analysis
         for i, page in enumerate(all_pages, 1):
-            messages[1]["content"].extend([
+            user_content.extend([
                 {
                     "type": "image_path",
                     "image_path": page.image_path,
@@ -109,6 +100,20 @@ class VisionPageSelector:
                     "text": f"[Page {i}]"
                 }
             ])
+
+        user_content.append(
+            {
+                "type": "text",
+                "text": VISION_PAGE_SELECTION_PROMPT.format(query=query)
+            }
+        )
+
+        messages.append(
+            {
+                "role": "user",
+                "content": user_content
+            }
+        )
 
         return messages
 
@@ -124,9 +129,9 @@ class VisionPageSelector:
             # Parse JSON response
             selection_data = json.loads(result.strip())
             selected_indices = selection_data.get("selected_pages", [])
-            reasoning = selection_data.get("reasoning", "No reasoning provided")
+            # reasoning = selection_data.get("reasoning", "No reasoning provided")
 
-            logger.debug(f"Vision model reasoning: {reasoning}")
+            # logger.debug(f"Vision model reasoning: {reasoning}")
 
             # Convert 1-based indices to actual pages
             selected_pages = []
@@ -148,7 +153,7 @@ class VisionPageSelector:
             logger.debug(f"Raw vision model response: {result}")
 
             # Raise error instead of fallback - no artificial limits
-            raise PageSelectionError(f"Failed to parse vision model page selection response: {e}")
+            raise PageSelectionError(f"Failed to parse vision model page selection response: {e}, raw response: \n{result}")
 
     async def select_pages_with_context(
         self,

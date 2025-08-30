@@ -295,14 +295,24 @@ class DocPixie:
         question: str,
         mode: QueryMode = QueryMode.AUTO,
         document_ids: Optional[List[str]] = None,
-        max_pages: Optional[int] = None
+        max_pages: Optional[int] = None,
+        conversation_history: Optional[List[ConversationMessage]] = None
     ) -> QueryResult:
         """Synchronous version of query"""
-        return sync_wrapper(self.query(question, mode, document_ids, max_pages, stream=False))
+        return sync_wrapper(self.query(question, mode, document_ids, max_pages, stream=False, conversation_history=conversation_history))
     
     def search_documents_sync(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Synchronous version of search_documents"""
         return sync_wrapper(self.search_documents(query, limit))
+    
+    def query_with_conversation_sync(
+        self,
+        question: str,
+        conversation_history: List[ConversationMessage],
+        mode: QueryMode = QueryMode.AUTO
+    ) -> QueryResult:
+        """Synchronous version of query_with_conversation"""
+        return sync_wrapper(self.query_with_conversation(question, conversation_history, mode))
     
     # Context manager support
     

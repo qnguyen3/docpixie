@@ -6,17 +6,17 @@ AI prompts for DocPixie adaptive RAG agent
 # SYSTEM PROMPTS - Copied from original backend
 # =============================================================================
 
-SYSTEM_DOCPIXIE = """You are DocPixie, an AI assistant that helps users understand and analyze their documents. 
+SYSTEM_DOCPIXIE = """You are DocPixie, an AI assistant that helps users understand and analyze their documents.
 You will be shown actual document pages as images. Analyze these images carefully and provide accurate, helpful responses based on what you see.
 Always cite which documents/pages you're referencing in your response."""
 
-SYSTEM_PIXIE = """You are Pixie, an AI assistant that helps users understand and analyze their documents. 
+SYSTEM_PIXIE = """You are Pixie, an AI assistant that helps users understand and analyze their documents.
 You will be shown actual document pages as images. Analyze these images carefully and provide accurate, helpful responses based on what you see.
 Always cite which documents/pages you're referencing in your response."""
 
 SYSTEM_VISION_EXPERT = "You are a document analysis expert using vision capabilities to analyze document images."
 
-SYSTEM_DIRECT_ANSWER = """You are DocPixie, a helpful AI assistant. 
+SYSTEM_DIRECT_ANSWER = """You are DocPixie, a helpful AI assistant.
 Answer the user's question directly without referring to any documents.
 Be concise and accurate."""
 
@@ -49,7 +49,7 @@ SYSTEM_PAGE_SELECTOR = """You are a document page selection expert. You analyze 
 
 USER_VISION_ANALYSIS = """
 First, please analyze the document pages, then use the information to answer the user's query.
-After that, please provide your answer in Markdown format, do not include any other text or even backticks. Only use backticks to format code blocks.
+After that, please provide your answer in Markdown format, do not include any other text or even backticks like ```json. Only use backticks to format code blocks.
 To reference the document pages, mention the document name and page number after the answer (example: answer [Document 1, Page 1]).
 
 If you do not have enough information to answer the user's query, please say so.
@@ -60,7 +60,7 @@ Query: {query}
 # REMOVED: TASK_PLANNING_PROMPT - No longer needed since we use vision-based page selection
 # instead of vector search vs page-specific retrieval strategies
 
-# REMOVED: TASK_QUERY_GENERATION_PROMPT - No longer needed since we use vision-based 
+# REMOVED: TASK_QUERY_GENERATION_PROMPT - No longer needed since we use vision-based
 # page selection instead of generating search queries for vector/semantic search
 
 TASK_PROCESSING_PROMPT = """You are DocPixie, analyzing specific documents to complete a focused task as part of a larger analysis.
@@ -147,7 +147,7 @@ Available Documents:
 doc_1: Q3 Financial Report
 Summary: This document contains comprehensive Q3 financial data including revenue breakdowns by product line, operating expenses, profit margins, and comparative analysis with Q2 results. Includes detailed income statements and cash flow analysis.
 
-doc_2: Annual Budget Planning  
+doc_2: Annual Budget Planning
 Summary: Contains budget allocations for the full fiscal year, projected expenses by department, and variance analysis comparing actual vs budgeted amounts for Q1-Q3.
 
 doc_3: Marketing Campaign Results
@@ -162,14 +162,14 @@ Output:
       "document": "doc_1"
     }},
     {{
-      "name": "Gather Q3 Expense Information", 
+      "name": "Gather Q3 Expense Information",
       "description": "Find Q3 operating expenses, costs, and expenditure details",
       "document": "doc_2"
     }}
   ]
 }}
 
-Create your initial task plan now. Output only valid JSON."""
+Create your initial task plan now. Output only valid JSON and do not include any other text or even backticks like ```json, ONLY THE JSON."""
 
 ADAPTIVE_PLAN_UPDATE_PROMPT = """You are an adaptive agent updating your task plan based on new information. Analyze what you've learned and decide if you need to modify your remaining tasks.
 
@@ -219,7 +219,7 @@ Option 2 - Add new tasks:
 
 Option 3 - Remove tasks:
 {{
-  "action": "remove_tasks", 
+  "action": "remove_tasks",
   "reason": "Why these tasks are no longer needed",
   "tasks_to_remove": ["task_id_1", "task_id_2"]
 }}
@@ -238,7 +238,7 @@ Option 4 - Modify tasks:
   ]
 }}
 
-Analyze your situation and decide what to do. Output only valid JSON."""
+Analyze your situation and decide what to do. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
 VISION_PAGE_SELECTION_PROMPT = """Analyze these document page images and select the most relevant pages for this query:
 
@@ -253,9 +253,9 @@ Look at each page image carefully and determine which pages are most likely to c
 Select all pages that are relevant - don't limit yourself to a specific number if multiple pages are needed.
 
 Return a JSON object with the page numbers that are most relevant:
-{{"selected_pages": [1, 3, 7], "reasoning": "Brief explanation of why these pages were selected"}}
+{{"selected_pages": [1, 3, 7]}}
 
-Here are the page images to analyze:"""
+Output only valid JSON and do not include any other text or even backticks like ```json. Here are the page images to analyze:"""
 
 # =============================================================================
 # ADDITIONAL PROMPTS - For existing components
@@ -289,7 +289,7 @@ Example:
   "page_specific": null
 }}
 
-Analyze the documents and return your selection. Output only valid JSON."""
+Analyze the documents and return your selection. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
 QUERY_REFORMULATION_PROMPT = """You are a query reformulation expert. Your task is to resolve references in the current query to make it suitable for document search.
 
@@ -345,7 +345,7 @@ Output:
   "reformulated_query": "Compare 2023 quarterly report with 2022"
 }}
 
-Return a JSON object with the reformulated query. Output only valid JSON."""
+Return a JSON object with the reformulated query. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
 # =============================================================================
 # CONTEXT PROCESSING PROMPTS
@@ -414,4 +414,4 @@ Query: "Summarize the main findings"
   "needs_documents": true
 }}
 
-Analyze the query and return only valid JSON."""
+Analyze the query and return only valid JSON and do not include any other text or even backticks like ```json."""

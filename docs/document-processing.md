@@ -70,71 +70,71 @@ from docpixie.models.document import Document
 
 class PPTXProcessor:
     """Convert PPTX to PDF for DocPixie processing"""
-    
+
     def __init__(self, pixie):
         self.pixie = pixie
         self.temp_dir = tempfile.mkdtemp(prefix="pptx_")
-    
+
     def process_pptx(
-        self, 
+        self,
         pptx_path: str,
         document_name: Optional[str] = None
     ) -> Document:
         """
         Process a PowerPoint file through DocPixie
-        
+
         The pipeline:
         1. PPTX → PDF (using LibreOffice)
         2. PDF → Images (using PyMuPDF via DocPixie)
         3. Images → Document with AI summary
-        
+
         Args:
             pptx_path: Path to PPTX file
             document_name: Optional custom name
-            
+
         Returns:
             Processed Document object
         """
         # Validate input
         if not Path(pptx_path).exists():
             raise FileNotFoundError(f"File not found: {pptx_path}")
-        
+
         if not pptx_path.lower().endswith('.pptx'):
             raise ValueError("File must be a .pptx file")
-        
+
         # Step 1: Convert PPTX to PDF using LibreOffice
         pdf_path = self._convert_to_pdf(pptx_path)
-        
+
         try:
             # Step 2: Process PDF with DocPixie (uses PyMuPDF internally)
             # This automatically:
             # - Converts PDF pages to images using PyMuPDF
             # - Optimizes images for vision model processing
             # - Generates AI summary of all slides
-            
+
             if not document_name:
                 document_name = Path(pptx_path).stem
-            
+
             document = self.pixie.add_document_sync(
                 pdf_path,
                 document_name=document_name
             )
-            
+
             print(f"✓ Processed {document.page_count} slides from {document_name}")
             return document
-            
+
         finally:
             # Clean up temporary PDF
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
-    
+
     def _convert_to_pdf(self, pptx_path: str) -> str:
         """Convert PPTX to PDF using LibreOffice"""
-        
+
         # Output PDF path
         pdf_name = Path(pptx_path).stem + ".pdf"
         pdf_path = os.path.join(self.temp_dir, pdf_name)
-        
+
         # LibreOffice conversion command
         cmd = [
             'libreoffice',
@@ -143,7 +143,7 @@ class PPTXProcessor:
             '--outdir', self.temp_dir,
             pptx_path
         ]
-        
+
         try:
             # Run conversion
             result = subprocess.run(
@@ -152,15 +152,15 @@ class PPTXProcessor:
                 text=True,
                 timeout=30
             )
-            
+
             if result.returncode != 0:
                 raise RuntimeError(f"Conversion failed: {result.stderr}")
-            
+
             if not os.path.exists(pdf_path):
                 raise RuntimeError("PDF was not created")
-            
+
             return pdf_path
-            
+
         except subprocess.TimeoutExpired:
             raise RuntimeError("Conversion timed out")
         except FileNotFoundError:
@@ -170,7 +170,7 @@ class PPTXProcessor:
                 "  Linux: sudo apt-get install libreoffice\n"
                 "  Windows: Download from libreoffice.org"
             )
-    
+
     def __del__(self):
         """Clean up temp directory"""
         import shutil
@@ -218,10 +218,10 @@ import os
 
 class SimplePPTXProcessor:
     """Alternative PPTX processor using pptx2pdf"""
-    
+
     def __init__(self, pixie):
         self.pixie = pixie
-    
+
     def process_pptx(self, pptx_path: str, document_name: Optional[str] = None) -> Document:
         """
         Process PPTX using pptx2pdf library
@@ -231,19 +231,19 @@ class SimplePPTXProcessor:
         temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
         temp_pdf_path = temp_pdf.name
         temp_pdf.close()
-        
+
         try:
             # Convert PPTX to PDF
             convert(pptx_path, temp_pdf_path)
-            
+
             # Let DocPixie process the PDF (PyMuPDF handles PDF→Images)
             document = self.pixie.add_document_sync(
                 temp_pdf_path,
                 document_name=document_name or Path(pptx_path).stem
             )
-            
+
             return document
-            
+
         finally:
             # Clean up temp file
             if os.path.exists(temp_pdf_path):
@@ -264,7 +264,7 @@ import tempfile
 
 def process_docx(docx_path: str, pixie):
     """Convert DOCX to PDF then process with DocPixie"""
-    
+
     # Convert DOCX to PDF using pypandoc
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
         pypandoc.convert_file(
@@ -272,10 +272,10 @@ def process_docx(docx_path: str, pixie):
             'pdf',
             outputfile=tmp.name
         )
-        
+
         # Process with DocPixie
         document = pixie.add_document_sync(tmp.name)
-        
+
     return document
 ```
 
@@ -289,21 +289,21 @@ from pathlib import Path
 
 def process_excel(xlsx_path: str, pixie):
     """Convert Excel sheets to images for DocPixie"""
-    
+
     # Read Excel file
     excel_file = pd.ExcelFile(xlsx_path)
     temp_dir = Path("temp_excel")
     temp_dir.mkdir(exist_ok=True)
-    
+
     # Convert each sheet to image
     for sheet_name in excel_file.sheet_names:
         df = excel_file.parse(sheet_name)
-        
+
         # Create visualization
         fig, ax = plt.subplots(figsize=(12, 8))
         ax.axis('tight')
         ax.axis('off')
-        
+
         # Render dataframe as table
         table = ax.table(
             cellText=df.values,
@@ -313,12 +313,12 @@ def process_excel(xlsx_path: str, pixie):
         )
         table.auto_set_font_size(False)
         table.set_fontsize(9)
-        
+
         # Save as image
         img_path = temp_dir / f"{sheet_name}.png"
         plt.savefig(img_path, bbox_inches='tight', dpi=150)
         plt.close()
-    
+
     # Create PDF from images and process
     # ... (combine images to PDF, then use DocPixie)
 ```
@@ -335,7 +335,7 @@ config = DocPixieConfig(
     jpeg_quality=90,              # 1-100, higher = better quality
     pdf_render_scale=2.0,         # Scale factor for PDF rendering
     pdf_max_image_size=(2048, 2048),  # Max dimensions
-    
+
     # Vision model settings
     vision_detail="high",         # "high" or "auto"
 )
@@ -361,27 +361,27 @@ import asyncio
 
 class CustomProcessor(BaseProcessor):
     """Template for custom document processors"""
-    
+
     SUPPORTED_EXTENSIONS = ['.custom']
-    
+
     async def process(
-        self, 
-        file_path: str, 
+        self,
+        file_path: str,
         document_id: Optional[str] = None
     ) -> Document:
         """
         Convert your format to images
-        
+
         Steps:
         1. Read your custom format
         2. Convert to images (JPEG/PNG)
         3. Create Page objects
         4. Return Document
         """
-        
+
         # Your conversion logic here
         images = self.convert_to_images(file_path)
-        
+
         # Create pages
         pages = []
         for i, img_path in enumerate(images, 1):
@@ -391,14 +391,14 @@ class CustomProcessor(BaseProcessor):
                 metadata={'source_format': 'custom'}
             )
             pages.append(page)
-        
+
         # Create document
         return Document(
             id=document_id or str(uuid.uuid4()),
             name=Path(file_path).stem,
             pages=pages
         )
-    
+
     def convert_to_images(self, file_path: str) -> List[str]:
         """Your custom conversion logic"""
         # Implement format-specific conversion
