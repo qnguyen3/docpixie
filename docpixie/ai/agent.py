@@ -226,8 +226,7 @@ class PixieRAGAgent:
             # Step 2: Select relevant pages for this task
             selected_pages = await self.page_selector.select_pages_for_task(
                 query=task.description,  # Use task description as selection query
-                task_pages=task_pages,
-                max_pages=self.config.max_pages_per_task
+                task_pages=task_pages
             )
             
             logger.info(f"Selected {len(selected_pages)} pages for task: {task.name}")

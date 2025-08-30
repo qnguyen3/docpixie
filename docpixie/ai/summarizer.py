@@ -6,7 +6,7 @@ import asyncio
 from typing import List, Optional, Dict, Any
 import logging
 
-from ..providers import BaseProvider, create_provider
+from ..providers.base import BaseProvider
 from ..models.document import Document, Page
 from ..core.config import DocPixieConfig
 from .prompts import PAGE_SUMMARIZATION_PROMPT, SYSTEM_VISION_EXPERT
@@ -19,7 +19,11 @@ class PageSummarizer:
     
     def __init__(self, config: DocPixieConfig, provider: Optional[BaseProvider] = None):
         self.config = config
-        self.provider = provider or create_provider(config)
+        if provider:
+            self.provider = provider
+        else:
+            from ..providers.factory import create_provider
+            self.provider = create_provider(config)
     
     async def summarize_pages(self, pages: List[Page]) -> List[Page]:
         """

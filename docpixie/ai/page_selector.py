@@ -29,8 +29,7 @@ class VisionPageSelector:
     async def select_pages_for_task(
         self, 
         query: str, 
-        task_pages: List[Page], 
-        max_pages: int = 6
+        task_pages: List[Page]
     ) -> List[Page]:
         """
         Select most relevant pages by analyzing page IMAGES with vision model
@@ -38,7 +37,6 @@ class VisionPageSelector:
         Args:
             query: The question/task to find pages for
             task_pages: Pages from the task's assigned document
-            max_pages: Maximum number of pages to select
             
         Returns:
             List of selected pages, ordered by relevance
@@ -50,15 +48,11 @@ class VisionPageSelector:
             logger.warning("No pages provided for selection")
             return []
         
-        if len(task_pages) <= max_pages:
-            logger.info(f"Only {len(task_pages)} pages available, returning all")
-            return task_pages
-        
         try:
-            logger.info(f"Selecting {max_pages} most relevant pages from {len(task_pages)} task pages")
+            logger.info(f"Selecting most relevant pages from {len(task_pages)} task pages")
             
             # Build vision-based selection message
-            messages = self._build_vision_selection_messages(query, task_pages, max_pages)
+            messages = self._build_vision_selection_messages(query, task_pages)
             
             # Use vision model to analyze page images and select best ones
             result = await self.provider.process_multimodal_messages(
@@ -68,7 +62,7 @@ class VisionPageSelector:
             )
             
             # Parse selection result
-            selected_pages = self._parse_page_selection(result, task_pages, max_pages)
+            selected_pages = self._parse_page_selection(result, task_pages)
             
             logger.info(f"Successfully selected {len(selected_pages)} pages")
             return selected_pages
@@ -80,8 +74,7 @@ class VisionPageSelector:
     def _build_vision_selection_messages(
         self, 
         query: str, 
-        all_pages: List[Page], 
-        max_pages: int
+        all_pages: List[Page]
     ) -> List[Dict[str, Any]]:
         """
         Build multimodal message with all page images for vision analysis
@@ -97,7 +90,7 @@ class VisionPageSelector:
                 "content": [
                     {
                         "type": "text",
-                        "text": f"""Analyze these document page images and select the {max_pages} most relevant pages for this query:
+                        "text": f"""Analyze these document page images and select the most relevant pages for this query:
 
 QUERY: {query}
 
@@ -106,6 +99,8 @@ Look at each page image carefully and determine which pages are most likely to c
 2. Charts, graphs, tables, or diagrams that might be relevant
 3. Headers, titles, or section names that relate to the query
 4. Overall page structure and content type
+
+Select all pages that are relevant - don't limit yourself to a specific number if multiple pages are needed.
 
 Return a JSON object with the page numbers that are most relevant:
 {{"selected_pages": [1, 3, 7], "reasoning": "Brief explanation of why these pages were selected"}}
@@ -135,8 +130,7 @@ Here are the page images to analyze:"""
     def _parse_page_selection(
         self, 
         result: str, 
-        all_pages: List[Page], 
-        max_pages: int
+        all_pages: List[Page]
     ) -> List[Page]:
         """
         Parse the vision model's page selection response
@@ -157,15 +151,10 @@ Here are the page images to analyze:"""
                     selected_pages.append(page)
                     logger.debug(f"Selected page {idx}: {page.image_path}")
             
-            # Ensure we don't exceed max_pages
-            if len(selected_pages) > max_pages:
-                selected_pages = selected_pages[:max_pages]
-                logger.debug(f"Trimmed selection to {max_pages} pages")
-            
-            # If no valid pages were selected, fallback to first pages
+            # If no valid pages were selected, return empty list and raise error
             if not selected_pages:
-                logger.warning("No valid pages selected by vision model, using fallback")
-                selected_pages = all_pages[:max_pages]
+                logger.error("No valid pages selected by vision model")
+                raise PageSelectionError("Vision model failed to select any valid pages")
             
             return selected_pages
             
@@ -173,15 +162,14 @@ Here are the page images to analyze:"""
             logger.error(f"Failed to parse page selection JSON: {e}")
             logger.debug(f"Raw vision model response: {result}")
             
-            # Fallback: return first N pages
-            return all_pages[:max_pages]
+            # Raise error instead of fallback - no artificial limits
+            raise PageSelectionError(f"Failed to parse vision model page selection response: {e}")
     
     async def select_pages_with_context(
         self,
         query: str,
         all_pages: List[Page],
-        previous_selections: List[Page] = None,
-        max_pages: int = 6
+        previous_selections: List[Page] = None
     ) -> List[Page]:
         """
         Select pages with context from previous selections (for iterative selection)
@@ -199,7 +187,7 @@ Here are the page images to analyze:"""
             
             # Select from remaining pages with context about what was already selected
             context_query = f"{query} (Note: Previous pages already analyzed related topics, focus on different aspects)"
-            return await self.select_pages_for_task(context_query, remaining_pages, max_pages)
+            return await self.select_pages_for_task(context_query, remaining_pages)
         else:
             # No previous context, use normal selection
-            return await self.select_pages_for_task(query, all_pages, max_pages)
+            return await self.select_pages_for_task(query, all_pages)
