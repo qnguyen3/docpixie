@@ -37,7 +37,7 @@ python -m pytest tests/test_basic.py::TestDocPixieConfig::test_default_config -v
 ```bash
 # Set API key first
 export OPENAI_API_KEY="your-key"
-# or 
+# or
 export ANTHROPIC_API_KEY="your-key"
 # or
 export OPENROUTER_API_KEY="your-key"
@@ -95,7 +95,7 @@ docpixie/
 │   └── factory.py         # Provider creation and validation
 ├── ai/                     # Business logic layer
 │   ├── summarizer.py      # Page/document summarization workflows
-│   ├── agent.py           # Main adaptive RAG agent orchestrator  
+│   ├── agent.py           # Main adaptive RAG agent orchestrator
 │   ├── task_planner.py    # Dynamic task planning with document selection
 │   ├── page_selector.py   # Vision-based page selection
 │   ├── context_processor.py # Conversation summarization
@@ -127,7 +127,7 @@ The critical architectural decision: document summaries use ALL page images in a
 ### Provider Message Format
 All providers receive messages with `image_path` type, then convert to their specific format:
 - OpenAI: `image_url` with data URL
-- Anthropic: `image` with base64 data  
+- Anthropic: `image` with base64 data
 - OpenRouter: Same as OpenAI
 
 ### Adaptive RAG Agent Implementation
@@ -144,14 +144,13 @@ The agent operates in a single adaptive mode with dynamic task planning:
 ```bash
 # Required for respective providers
 OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key  
+ANTHROPIC_API_KEY=your_anthropic_key
 OPENROUTER_API_KEY=your_openrouter_key
 
 # Optional configuration overrides
 DOCPIXIE_PROVIDER=openai|anthropic|openrouter
 DOCPIXIE_STORAGE_PATH=./docpixie_data
 DOCPIXIE_MAX_AGENT_ITERATIONS=5
-DOCPIXIE_MAX_PAGES_PER_TASK=6
 DOCPIXIE_JPEG_QUALITY=90
 ```
 
