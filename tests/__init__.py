@@ -1,1 +1,0 @@
-"""DocPixie test suite"""
