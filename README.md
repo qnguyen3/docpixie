@@ -1,288 +1,113 @@
-# DocPixie Open Source - Phase 1
+# DocPixie Core — Multimodal Adaptive RAG Agent and SDK
 
-A lightweight, vision-based multimodal RAG library that doesn't require vector databases or embedding models.
+DocPixie Core is a lightweight, vision-first RAG SDK for analyzing document pages and answering questions with an adaptive, agentic workflow. It focuses on practical multimodal retrieval without requiring embeddings or vector databases.
 
-## 🚀 Phase 1 Features (Completed)
+Key capabilities:
+- Vision-based page selection: analyzes actual page images, not just text.
+- Adaptive task planning: creates and updates a focused plan while working.
+- Conversation-aware: summarizes long history and reformulates queries.
+- Pluggable providers: OpenAI, Anthropic, and OpenRouter supported.
+- Simple storage: in-memory or local filesystem document storage.
+- Async-first with convenient sync wrappers for easy adoption.
 
-- ✅ **PyMuPDF Document Processing**: Fast PDF to image conversion
-- ✅ **Multi-format Support**: PDF, JPG, PNG, WebP, and more
-- ✅ **Flexible Storage**: Local file system and in-memory storage
-- ✅ **Configuration System**: Comprehensive settings management
-- ✅ **Async/Sync API**: Both async and synchronous interfaces
-- ✅ **Flash/Pro Modes**: Different complexity levels for queries
-- ✅ **Page Summarization**: Vision-based page summary generation
-- ✅ **Document Management**: Add, list, search, and delete documents
+See docs in `./docs` for quickstart, architecture, and configuration details.
 
-## 🔮 Coming in Phase 2
+## Installation
 
-- 🚧 Vision-based page selection
-- 🚧 Complete RAG query pipeline
-- 🚧 OpenAI GPT-4V integration
-- 🚧 Anthropic Claude integration
-- 🚧 Streaming responses
-
-## 📦 Installation
+- Python 3.10+
+- Install dependencies:
 
 ```bash
-# Basic installation
-pip install Pillow PyMuPDF
-
-# With OpenAI support
-pip install Pillow PyMuPDF openai
-
-# With Anthropic support  
-pip install Pillow PyMuPDF anthropic
-
-# Development installation
 pip install -r requirements.txt
 ```
 
-## 🏁 Quick Start
+- Set an API key for your preferred provider (pick one):
+  - OpenAI: `export OPENAI_API_KEY=...`
+  - Anthropic: `export ANTHROPIC_API_KEY=...`
+  - OpenRouter: `export OPENROUTER_API_KEY=...`
 
-### Basic Usage
+Optionally choose a provider via config or environment (defaults to OpenAI). See Configuration docs for details.
+
+## Quickstart
+
+Minimal example using in-memory storage:
 
 ```python
 import asyncio
-from docpixie import create_docpixie
+from docpixie.docpixie import create_memory_docpixie
 
 async def main():
-    # Create DocPixie instance
-    docpixie = create_docpixie(
-        provider="openai",
-        api_key="your-openai-api-key"
-    )
-    
-    # Add a document
-    document = await docpixie.add_document(
-        "research_paper.pdf",
-        summarize=True  # Generate page summaries
-    )
-    
-    print(f"Processed {document.page_count} pages")
-    
-    # Query documents (Phase 2 feature - currently returns placeholder)
-    result = await docpixie.query("What are the main findings?")
-    print(f"Answer: {result.answer}")
+    dp = create_memory_docpixie(provider="openai")  # uses OPENAI_API_KEY
+
+    # Add a PDF (images also supported by processors)
+    doc = await dp.add_document("/path/to/file.pdf", summarize=True)
+
+    # Ask a question (adaptive, vision-first RAG)
+    result = await dp.query("What are the Q3 revenues?")
+
+    print(result.answer)
+    print("Pages used:", [p.page_number for p in result.selected_pages])
+    print("Confidence:", result.confidence)
 
 asyncio.run(main())
 ```
 
-### Synchronous API
+Synchronous API is also available:
 
 ```python
-from docpixie import create_docpixie
+from docpixie.docpixie import create_memory_docpixie
 
-# Create DocPixie instance  
-docpixie = create_docpixie(api_key="your-api-key")
-
-# Use sync methods
-document = docpixie.add_document_sync("document.pdf")
-result = docpixie.query_sync("What is this about?")
+pixie = create_memory_docpixie(provider="openai")
+doc = pixie.add_document_sync("/path/to/file.pdf", summarize=False)
+res = pixie.query_sync("Summarize the main points")
+print(res.answer)
 ```
 
-### Configuration
+More examples: `examples/basic_usage.py`.
+
+## How It Works (Agent Pipeline)
+
+`docpixie/ai/agent.py` orchestrates an adaptive multimodal pipeline:
+1. Context processing: summarize conversation if long (`ContextProcessor`).
+2. Query reformulation: resolve pronouns/refs when conversation exists (`QueryReformulator`).
+3. Classification: decide if documents are required (`QueryClassifier`).
+4. Task planning: create a 2–4 task initial plan with doc assignments (`TaskPlanner`).
+5. Vision page selection: choose relevant pages via model over images (`VisionPageSelector`).
+6. Task execution: analyze selected pages per task using a multimodal model.
+7. Synthesis: combine all task findings into a coherent answer (`ResponseSynthesizer`).
+
+The agent adapts after each task by potentially modifying the remaining plan. Provider calls are abstracted via `BaseProvider` with OpenAI, Anthropic, and OpenRouter implementations.
+
+## Storage and Processing
+
+- Processors render PDFs to page images with PyMuPDF (`docpixie/processors/pdf.py`).
+- Storage backends implement `BaseStorage` (local filesystem or in-memory).
+- Page and document summaries can be generated with the vision model (`PageSummarizer`).
+
+## Configuration
+
+Use `DocPixieConfig` to control provider, models, storage, and agent limits:
 
 ```python
-from docpixie import DocPixie, DocPixieConfig
-
-# Custom configuration
-config = DocPixieConfig(
-    provider="anthropic",  # Use Claude instead of GPT-4V
-    flash_max_pages=3,     # Fewer pages for Flash mode
-    pro_max_pages=20,      # More pages for Pro mode  
-    pdf_render_scale=3.0,  # Higher quality PDF rendering
-    jpeg_quality=95        # Higher image quality
-)
-
-docpixie = DocPixie(config=config, api_key="your-anthropic-key")
+from docpixie.core.config import DocPixieConfig
+cfg = DocPixieConfig(provider="openai", storage_type="memory", max_agent_iterations=5)
 ```
 
-## 🏗️ Architecture
+Environment helpers (`DocPixieConfig.from_env`) are available. See `docs/configuration.md` for a focused guide.
 
-DocPixie uses a clean, extensible architecture:
+## Testing
 
-```
-DocPixie/
-├── Core Components
-│   ├── Document Processor (PyMuPDF)
-│   ├── Storage Layer (Local/Memory)  
-│   ├── Page Summarizer (Vision AI)
-│   └── Configuration System
-│
-├── Processors
-│   ├── PDFProcessor (PyMuPDF)
-│   ├── ImageProcessor (Pillow)
-│   └── ProcessorFactory
-│
-├── Storage Backends
-│   ├── LocalStorage
-│   ├── InMemoryStorage
-│   └── BaseStorage (interface)
-│
-└── AI Integration
-    ├── OpenAI GPT-4V
-    ├── Anthropic Claude  
-    └── BaseAIClient (interface)
-```
+An end-to-end agent test using a dummy provider is available in `tests/test_agent_e2e.py`. Run your test runner of choice (e.g., `pytest`) after installing dev dependencies.
 
-## 🔧 Development
+## What’s Included
 
-### Running Tests
+- High-level API: `docpixie/docpixie.py` (add docs, query, list/search).
+- Agent and components: `docpixie/ai/*` (planner, selector, synthesizer, prompts).
+- Providers: `docpixie/providers/*` (OpenAI, Anthropic, OpenRouter).
+- Storage and processors: `docpixie/storage/*`, `docpixie/processors/*`.
 
-```bash
-# Install test dependencies
-pip install pytest pytest-asyncio
+## Notes
 
-# Run tests
-python -m pytest tests/
+- This core SDK focuses on a clean, dependency-light agentic RAG loop. No embeddings/vector DBs are required.
+- Some advanced features from production DocPixie are simplified here for clarity and portability.
 
-# Run specific test
-python tests/test_basic.py
-```
-
-### Running Examples
-
-```bash
-# Basic usage example
-python examples/basic_usage.py
-
-# Make sure to set API key
-export OPENAI_API_KEY="your-key"
-python examples/basic_usage.py
-```
-
-## 📚 API Reference
-
-### DocPixie Class
-
-```python
-class DocPixie:
-    async def add_document(file_path, document_id=None, summarize=True) -> Document
-    async def get_document(document_id: str) -> Optional[Document]  
-    async def list_documents(limit=None) -> List[Dict]
-    async def delete_document(document_id: str) -> bool
-    async def query(question: str, mode=QueryMode.AUTO) -> QueryResult
-    
-    # Synchronous versions
-    def add_document_sync(...) -> Document
-    def query_sync(...) -> QueryResult
-```
-
-### Document Models
-
-```python
-@dataclass 
-class Document:
-    id: str
-    name: str
-    pages: List[Page]
-    summary: Optional[str]
-    status: DocumentStatus
-
-@dataclass
-class Page:
-    page_number: int
-    image_path: str
-    content_summary: Optional[str]
-    
-@dataclass
-class QueryResult:
-    query: str
-    answer: str
-    selected_pages: List[Page]
-    mode: QueryMode
-    confidence: float
-```
-
-## 🎯 Flash vs Pro Modes
-
-| Feature | Flash Mode | Pro Mode |
-|---------|-----------|----------|
-| Response Time | ~5-10 seconds | ~20-30 seconds |
-| Pages Analyzed | Up to 5 | Up to 15 |
-| Vision Detail | Low (thumbnails) | High (full resolution) |
-| Analysis Depth | Single-pass | Multi-step synthesis |
-| Use Case | Quick answers | Comprehensive analysis |
-
-## 🔐 Environment Variables
-
-```bash
-# AI Provider API Keys
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-
-# DocPixie Configuration (optional)
-DOCPIXIE_PROVIDER=openai
-DOCPIXIE_STORAGE_PATH=./my_docs
-DOCPIXIE_FLASH_MAX_PAGES=5
-DOCPIXIE_PRO_MAX_PAGES=15
-```
-
-## 📈 Performance
-
-### Phase 1 Benchmarks
-
-- **PDF Processing**: 3-5x faster than pdf2image (using PyMuPDF)
-- **Memory Usage**: ~256KB per page (optimized images)
-- **Storage**: Local filesystem or in-memory options
-- **Concurrency**: Async/await throughout for better performance
-
-### Supported File Types
-
-- **PDF**: .pdf
-- **Images**: .jpg, .jpeg, .png, .webp, .bmp, .tiff, .tif
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **PyMuPDF Installation**
-   ```bash
-   pip install --upgrade PyMuPDF
-   ```
-
-2. **API Key Issues**
-   ```bash
-   export OPENAI_API_KEY="your-key"
-   # or
-   export ANTHROPIC_API_KEY="your-key"  
-   ```
-
-3. **Memory Issues with Large PDFs**
-   ```python
-   config = DocPixieConfig(
-       pdf_render_scale=1.5,  # Reduce from default 2.0
-       jpeg_quality=85        # Reduce from default 90
-   )
-   ```
-
-## 🗺️ Roadmap
-
-### Phase 2 (Next 2 weeks)
-- Vision-based page selection
-- Complete RAG pipeline
-- Query answering with GPT-4V/Claude
-- Streaming responses
-
-### Phase 3 (Following 2 weeks)  
-- Multiple AI provider support
-- Enhanced configuration
-- Performance optimizations
-
-### Phase 4+ (Future)
-- Cloud storage backends (S3, Azure)
-- Custom model support
-- Advanced caching
-- Web interface
-
-## 🤝 Contributing
-
-DocPixie is in active development. Phase 1 provides the foundation - document processing, storage, and configuration. Contributions welcome!
-
-## 📄 License
-
-Apache 2.0 License - see LICENSE file for details.
-
----
-
-**Note**: This is Phase 1 of the DocPixie open source library. Query functionality returns placeholder responses until Phase 2 implementation is complete.
