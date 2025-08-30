@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 import logging
 
-from ..models.document import Document
+from ..models.document import Document, Page
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,26 @@ class BaseStorage(ABC):
             
         Returns:
             True if update was successful
+        """
+        pass
+    
+    @abstractmethod
+    async def get_all_documents(self) -> List[Document]:
+        """
+        Get all documents for agent processing
+        
+        Returns:
+            List of all documents in storage
+        """
+        pass
+    
+    @abstractmethod
+    async def get_all_pages(self) -> List[Page]:
+        """
+        Get all pages from all documents for agent processing
+        
+        Returns:
+            List of all pages across all documents
         """
         pass
     

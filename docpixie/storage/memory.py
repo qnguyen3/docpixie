@@ -194,6 +194,18 @@ class InMemoryStorage(BaseStorage):
         
         return score
     
+    async def get_all_documents(self) -> List[Document]:
+        """Get all documents for agent processing"""
+        return list(self._documents.values())
+    
+    async def get_all_pages(self) -> List[Page]:
+        """Get all pages from all documents for agent processing"""
+        all_pages = []
+        for document in self._documents.values():
+            if document.pages:
+                all_pages.extend(document.pages)
+        return all_pages
+    
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get storage statistics"""
         try:

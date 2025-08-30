@@ -9,6 +9,7 @@ __version__ = "0.1.0"
 
 from .docpixie import DocPixie
 from .models.document import Document, Page, QueryResult, QueryMode
+from .models.agent import ConversationMessage
 from .core.config import DocPixieConfig
 from .providers import BaseProvider, create_provider
 
@@ -18,6 +19,7 @@ __all__ = [
     "Page", 
     "QueryResult",
     "QueryMode",
+    "ConversationMessage",
     "DocPixieConfig",
     "BaseProvider",
     "create_provider"

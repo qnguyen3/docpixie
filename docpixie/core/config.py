@@ -58,6 +58,12 @@ class DocPixieConfig:
     cache_ttl: int = 3600  # 1 hour
     cache_max_size: int = 100
     
+    # Agent Settings
+    max_agent_iterations: int = 5  # Maximum adaptive planning iterations
+    max_pages_per_task: int = 6    # Maximum pages to analyze per task
+    max_tasks_per_plan: int = 4    # Maximum tasks in initial plan
+    enable_conversation: bool = True  # Enable conversation support
+    
     # Logging
     log_level: str = "INFO"
     log_requests: bool = False

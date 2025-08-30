@@ -274,6 +274,58 @@ class LocalStorage(BaseStorage):
         
         return [str(f) for f in page_files]
     
+    async def get_all_documents(self) -> List[Document]:
+        """Get all documents for agent processing"""
+        try:
+            documents = []
+            
+            if not self.base_path.exists():
+                return documents
+            
+            # Get all document directories
+            for doc_dir in self.base_path.iterdir():
+                if doc_dir.is_dir():
+                    try:
+                        # Load the document
+                        document = await self.get_document(doc_dir.name)
+                        if document:
+                            documents.append(document)
+                    except Exception as e:
+                        logger.warning(f"Failed to load document {doc_dir.name}: {e}")
+                        continue
+            
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Failed to get all documents: {e}")
+            raise StorageError(f"Failed to get all documents: {e}")
+    
+    async def get_all_pages(self) -> List[Page]:
+        """Get all pages from all documents for agent processing"""
+        try:
+            all_pages = []
+            
+            if not self.base_path.exists():
+                return all_pages
+            
+            # Get all document directories
+            for doc_dir in self.base_path.iterdir():
+                if doc_dir.is_dir():
+                    try:
+                        # Load the document
+                        document = await self.get_document(doc_dir.name)
+                        if document and document.pages:
+                            all_pages.extend(document.pages)
+                    except Exception as e:
+                        logger.warning(f"Failed to load pages from document {doc_dir.name}: {e}")
+                        continue
+            
+            return all_pages
+            
+        except Exception as e:
+            logger.error(f"Failed to get all pages: {e}")
+            raise StorageError(f"Failed to get all pages: {e}")
+    
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get storage statistics"""
         try:
