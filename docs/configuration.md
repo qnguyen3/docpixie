@@ -52,8 +52,6 @@ Long histories are summarized to keep prompts efficient:
 ## Request and Caching
 
 
-- `enable_cache`, `cache_ttl`, `cache_max_size`
-
 ## Environment-Based Config
 
 Create from env:
