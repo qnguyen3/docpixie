@@ -10,9 +10,6 @@ from pathlib import Path
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 
-# Add the docpixie package to path if running from source
-sys.path.insert(0, str(Path(__file__).parent))
-
 from docpixie import DocPixie, ConversationMessage
 from docpixie.core.config import DocPixieConfig
 from docpixie.models.document import Document, QueryResult
