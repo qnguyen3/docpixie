@@ -97,21 +97,21 @@ SYNTHESIS GUIDELINES:
 1. Create a cohesive response that fully addresses the original query
 2. Integrate findings from all tasks into a logical narrative
 3. Highlight the most important insights and conclusions
-4. Maintain all specific details (numbers, dates, facts) from task results
-5. Structure the response clearly with sections if appropriate
+4. Structure the response clearly with sections if appropriate
 
 IMPORTANT RULES:
 - Use ALL relevant information from the task results
+- Avoid long answers, focus on the most important information to answer the user's query
 - Don't introduce new information not found in the task results
 - If tasks found contradictory information, acknowledge and explain it
 - If some aspects of the query couldn't be answered, clearly state what's missing
 - Maintain document citations from the task results
+- Do not include any citation of any document of pages.
 
 RESPONSE STRUCTURE GUIDELINES:
 - Start with a brief overview answering the main query
 - Present detailed findings organized by topic or importance
 - Use bullet points or numbered lists for clarity when appropriate
-- End with key takeaways or conclusions if relevant
 - Keep the tone professional but conversational
 
 Please synthesize all task findings into a comprehensive response that fully addresses the user's original query."""
@@ -120,7 +120,7 @@ Please synthesize all task findings into a comprehensive response that fully add
 # NEW PROMPTS - For adaptive agent functionality
 # =============================================================================
 
-ADAPTIVE_INITIAL_PLANNING_PROMPT = """You are creating an initial task plan for a document analysis query. Create 2-4 focused tasks that will help gather information to answer the user's question.
+ADAPTIVE_INITIAL_PLANNING_PROMPT = """You are creating an initial task plan for a document analysis query. Create the MINIMUM number of tasks (1-3) needed to gather distinct information to answer the user's question.
 
 QUERY: {query}
 
@@ -128,20 +128,39 @@ AVAILABLE DOCUMENTS:
 {documents}
 
 TASK CREATION RULES:
-1. Create focused, specific tasks (not generic "search" tasks)
-2. Each task should look for specific information needed to answer the query
-3. Keep task names clear and under 30 characters
-4. Task descriptions should be specific about what information to find
-5. For each task, specify which documents are most relevant to search
-6. Don't create more than 4 tasks for the initial plan
+1. Create the FEWEST tasks possible - only create multiple tasks if they require fundamentally different information
+2. Each task should retrieve DISTINCT information that cannot be found together
+3. Avoid creating similar or overlapping tasks
+4. Keep task names clear and under 30 characters
+5. Task descriptions should be specific about what information to retrieve
+6. For each task, specify which documents are most relevant to search
+7. Prefer one comprehensive task over multiple similar tasks
+8. Do not mentione the doucment name in the Task's name or description
 
 OUTPUT FORMAT:
 Return a JSON object with a "tasks" array. Each task should have:
 - "name": Short, clear task name
-- "description": Specific description of what information to find
+- "description": Specific description of what single piece of information to find
 - "document": Single document ID that is most relevant for this task
 
-EXAMPLE:
+EXAMPLE 1 (Single Task):
+Query: "What is the current CEO's name?"
+Available Documents:
+doc_1: Company Leadership Directory
+Summary: Contains current organizational chart, executive team profiles, board member information, and contact details for all senior leadership positions.
+
+Output:
+{{
+  "tasks": [
+    {{
+      "name": "Find Current CEO Name",
+      "description": "Locate the name of the current Chief Executive Officer",
+      "document": "doc_1"
+    }}
+  ]
+}}
+
+EXAMPLE 2 (Financial Query - Single Task):
 Query: "What were our Q3 financial results?"
 Available Documents:
 doc_1: Q3 Financial Report
@@ -157,19 +176,62 @@ Output:
 {{
   "tasks": [
     {{
-      "name": "Find Q3 Revenue Data",
-      "description": "Locate Q3 revenue figures, sales numbers, and income statements",
+      "name": "Get Q3 Financial Results",
+      "description": "Retrieve all Q3 financial data including revenue, expenses, and profit figures",
       "document": "doc_1"
+    }}
+  ]
+}}
+
+EXAMPLE 3 (Two Distinct Information Sources):
+Query: "How do we implement user authentication and what are the security requirements?"
+Available Documents:
+doc_1: System Architecture Guide
+Summary: Detailed technical documentation covering system design patterns, database schemas, API endpoints, and integration points for the main application.
+
+doc_2: Security Implementation Manual
+Summary: Comprehensive security guidelines including authentication methods, authorization protocols, encryption standards, and access control mechanisms.
+
+doc_3: User Management API Documentation
+Summary: API reference for user-related endpoints including registration, login, password reset, and profile management functions.
+
+Output:
+{{
+  "tasks": [
+    {{
+      "name": "Get Auth Implementation",
+      "description": "Retrieve technical implementation details for user authentication system",
+      "document": "doc_3"
     }},
     {{
-      "name": "Gather Q3 Expense Information",
-      "description": "Find Q3 operating expenses, costs, and expenditure details",
+      "name": "Get Security Requirements",
+      "description": "Retrieve security standards and requirements for authentication",
       "document": "doc_2"
     }}
   ]
 }}
 
-Create your initial task plan now. Output only valid JSON and do not include any other text or even backticks like ```json, ONLY THE JSON."""
+EXAMPLE 4 (Single Task for Policy Query):
+Query: "What is our remote work policy and what equipment do remote employees get?"
+Available Documents:
+doc_1: Employee Handbook 2024
+Summary: Complete employee policies including remote work guidelines, equipment provisioning, expense reimbursement, and performance expectations for remote workers.
+
+doc_2: IT Equipment Catalog
+Summary: Inventory of available hardware and software, procurement procedures, and equipment assignment policies for different employee roles and locations.
+
+Output:
+{{
+  "tasks": [
+    {{
+      "name": "Get Remote Work Policy",
+      "description": "Retrieve remote work policy details including equipment provisions",
+      "document": "doc_1"
+    }}
+  ]
+}}
+
+Create your initial task plan now. Remember: use the MINIMUM number of tasks needed. Only create multiple tasks if they require fundamentally different information from different sources. Output only valid JSON and do not include any other text or even backticks like ```json, ONLY THE JSON."""
 
 ADAPTIVE_PLAN_UPDATE_PROMPT = """You are an adaptive agent updating your task plan based on new information. Analyze what you've learned and decide if you need to modify your remaining tasks.
 
@@ -242,19 +304,22 @@ Analyze your situation and decide what to do. Output only valid JSON and do not 
 
 VISION_PAGE_SELECTION_PROMPT = """Analyze these document page images and select the most relevant pages for this query:
 
-QUERY: {query}
-
 Look at each page image carefully and determine which pages are most likely to contain information that would help answer the query. Consider:
 1. Text content visible in the page
 2. Charts, graphs, tables, or diagrams that might be relevant
 3. Headers, titles, or section names that relate to the query
 4. Overall page structure and content type
+5. Try to focus on the query and look for the pages that contain the most relevant information only
+6. Do not use more than 5 pages in your selection
 
 Select all pages that are relevant - don't limit yourself to a specific number if multiple pages are needed.
 
 Return a JSON object with the page numbers that are most relevant:
 {{"selected_pages": [1, 3, 7]}}
-
+----------------
+Query: {query}
+Query Description: {query_description}
+----------------
 Output only valid JSON and do not include any other text or even backticks like ```json. Here are the page images to analyze:"""
 
 # =============================================================================
@@ -292,13 +357,6 @@ Example:
 Analyze the documents and return your selection. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
 QUERY_REFORMULATION_PROMPT = """You are a query reformulation expert. Your task is to resolve references in the current query to make it suitable for document search.
-
-CONVERSATION CONTEXT:
-{conversation_context}
-
-RECENT TOPICS: {recent_topics}
-
-CURRENT QUERY: {current_query}
 
 Create a reformulated query that:
 1. Resolves pronouns (e.g., "it", "this", "that") to their actual subjects from context
@@ -344,6 +402,15 @@ Output:
 {{
   "reformulated_query": "Compare 2023 quarterly report with 2022"
 }}
+
+----------
+CONVERSATION CONTEXT:
+{conversation_context}
+
+RECENT TOPICS: {recent_topics}
+
+CURRENT QUERY: {current_query}
+----------
 
 Return a JSON object with the reformulated query. Output only valid JSON and do not include any other text or even backticks like ```json."""
 

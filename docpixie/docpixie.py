@@ -4,7 +4,7 @@ Simplified multimodal RAG without embeddings or vector databases
 """
 
 import asyncio
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Callable
 from pathlib import Path
 import logging
 
@@ -146,7 +146,8 @@ class DocPixie:
         document_ids: Optional[List[str]] = None,
         max_pages: Optional[int] = None,
         stream: bool = False,
-        conversation_history: Optional[List[ConversationMessage]] = None
+        conversation_history: Optional[List[ConversationMessage]] = None,
+        task_update_callback: Optional[Any] = None
     ) -> QueryResult:
         """
         Query documents with a question using adaptive vision-based RAG
@@ -166,7 +167,7 @@ class DocPixie:
         
         try:
             # Use the adaptive RAG agent for processing
-            agent_result = await self.agent.process_query(question, conversation_history)
+            agent_result = await self.agent.process_query(question, conversation_history, task_update_callback)
             
             # Convert agent QueryResult to API QueryResult format
             return QueryResult(
@@ -296,10 +297,11 @@ class DocPixie:
         mode: QueryMode = QueryMode.AUTO,
         document_ids: Optional[List[str]] = None,
         max_pages: Optional[int] = None,
-        conversation_history: Optional[List[ConversationMessage]] = None
+        conversation_history: Optional[List[ConversationMessage]] = None,
+        task_update_callback: Optional[Any] = None
     ) -> QueryResult:
         """Synchronous version of query"""
-        return sync_wrapper(self.query(question, mode, document_ids, max_pages, stream=False, conversation_history=conversation_history))
+        return sync_wrapper(self.query(question, mode, document_ids, max_pages, stream=False, conversation_history=conversation_history, task_update_callback=task_update_callback))
     
     def search_documents_sync(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Synchronous version of search_documents"""

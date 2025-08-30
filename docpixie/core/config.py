@@ -15,7 +15,7 @@ class DocPixieConfig:
 
     # Document Processing with PyMuPDF
     pdf_render_scale: float = 2.0  # Higher scale = better quality, larger files
-    pdf_max_image_size: Tuple[int, int] = (2048, 2048)
+    pdf_max_image_size: Tuple[int, int] = (1200, 1200)
     jpeg_quality: int = 90
     thumbnail_size: Tuple[int, int] = (256, 256)  # For quick page selection
 

@@ -29,6 +29,7 @@ class VisionPageSelector:
     async def select_pages_for_task(
         self,
         query: str,
+        query_description: str,
         task_pages: List[Page]
     ) -> List[Page]:
         """
@@ -52,7 +53,7 @@ class VisionPageSelector:
             logger.info(f"Selecting most relevant pages from {len(task_pages)} task pages")
 
             # Build vision-based selection message
-            messages = self._build_vision_selection_messages(query, task_pages)
+            messages = self._build_vision_selection_messages(query, query_description, task_pages)
 
             # Use vision model to analyze page images and select best ones
             result = await self.provider.process_multimodal_messages(
@@ -74,6 +75,7 @@ class VisionPageSelector:
     def _build_vision_selection_messages(
         self,
         query: str,
+        query_description: str,
         all_pages: List[Page]
     ) -> List[Dict[str, Any]]:
         """
@@ -104,7 +106,7 @@ class VisionPageSelector:
         user_content.append(
             {
                 "type": "text",
-                "text": VISION_PAGE_SELECTION_PROMPT.format(query=query)
+                "text": VISION_PAGE_SELECTION_PROMPT.format(query=query, query_description=query_description)
             }
         )
 
@@ -154,30 +156,3 @@ class VisionPageSelector:
 
             # Raise error instead of fallback - no artificial limits
             raise PageSelectionError(f"Failed to parse vision model page selection response: {e}, raw response: \n{result}")
-
-    async def select_pages_with_context(
-        self,
-        query: str,
-        all_pages: List[Page],
-        previous_selections: List[Page] = None
-    ) -> List[Page]:
-        """
-        Select pages with context from previous selections (for iterative selection)
-        """
-        if previous_selections:
-            # Filter out already selected pages
-            remaining_pages = [
-                page for page in all_pages
-                if page.image_path not in {p.image_path for p in previous_selections}
-            ]
-
-            if not remaining_pages:
-                logger.info("All pages have been previously selected")
-                return []
-
-            # Select from remaining pages with context about what was already selected
-            context_query = f"{query} (Note: Previous pages already analyzed related topics, focus on different aspects)"
-            return await self.select_pages_for_task(context_query, remaining_pages)
-        else:
-            # No previous context, use normal selection
-            return await self.select_pages_for_task(query, all_pages)

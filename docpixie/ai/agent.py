@@ -63,7 +63,8 @@ class PixieRAGAgent:
     async def process_query(
         self,
         query: str,
-        conversation_history: Optional[List[ConversationMessage]] = None
+        conversation_history: Optional[List[ConversationMessage]] = None,
+        task_update_callback: Optional[Any] = None
     ) -> QueryResult:
         """
         Process a user query with adaptive task planning and execution
@@ -118,9 +119,13 @@ class PixieRAGAgent:
             # Step 5: Task Planning + Document Selection (merged)
             task_plan = await self.task_planner.create_initial_plan(reformulated_query, documents)
 
+            # Report initial task plan
+            if task_update_callback:
+                await task_update_callback('plan_created', task_plan)
+
             # Step 6: Execute tasks adaptively
             task_results = await self._execute_adaptive_plan(
-                task_plan, reformulated_query, documents, conversation_history
+                task_plan, reformulated_query, documents, conversation_history, task_update_callback
             )
 
             # Step 7: Synthesize final response
@@ -154,7 +159,8 @@ class PixieRAGAgent:
         task_plan: TaskPlan,
         original_query: str,
         documents: List[Document],
-        conversation_history: Optional[List[ConversationMessage]] = None
+        conversation_history: Optional[List[ConversationMessage]] = None,
+        task_update_callback: Optional[Any] = None
     ) -> List[TaskResult]:
         """Execute task plan with adaptive replanning"""
         task_results = []
@@ -174,9 +180,13 @@ class PixieRAGAgent:
             logger.info(f"Executing task: {current_task.name}")
             current_task.status = TaskStatus.IN_PROGRESS
 
+            # Report task starting
+            if task_update_callback:
+                await task_update_callback('task_started', {'task': current_task, 'plan': task_plan})
+
             # Execute the task
             task_result = await self._execute_single_task(
-                current_task, documents, original_query, conversation_history
+                current_task, documents, original_query, conversation_history, task_update_callback
             )
 
             # Mark task completed
@@ -186,12 +196,21 @@ class PixieRAGAgent:
             logger.info(f"Task completed: {current_task.name} "
                        f"(analyzed {task_result.pages_analyzed} pages)")
 
+            # Report task completion
+            if task_update_callback:
+                await task_update_callback('task_completed', {'task': current_task, 'result': task_result, 'plan': task_plan})
+
             # Update plan adaptively if there are still pending tasks
             if task_plan.has_pending_tasks():
                 logger.info("Checking if task plan needs updating...")
+                old_task_count = len(task_plan.tasks)
                 task_plan = await self.task_planner.update_plan(
                     task_plan, task_result, original_query, documents
                 )
+
+                # Report plan update if it changed
+                if task_update_callback and len(task_plan.tasks) != old_task_count:
+                    await task_update_callback('plan_updated', task_plan)
 
         task_plan.current_iteration = iteration
         logger.info(f"Task execution completed after {iteration} iterations")
@@ -202,7 +221,8 @@ class PixieRAGAgent:
         task: Any,  # AgentTask
         documents: List[Document],
         original_query: str,
-        conversation_history: Optional[List[ConversationMessage]] = None
+        conversation_history: Optional[List[ConversationMessage]] = None,
+        task_update_callback: Optional[Any] = None
     ) -> TaskResult:
         """Execute a single task: document filtering + page selection + analysis"""
         try:
@@ -225,11 +245,17 @@ class PixieRAGAgent:
 
             # Step 2: Select relevant pages for this task
             selected_pages = await self.page_selector.select_pages_for_task(
-                query=task.description,  # Use task description as selection query
+                query=task.name,
+                query_description=task.description,
                 task_pages=task_pages
             )
 
             logger.info(f"Selected {len(selected_pages)} pages for task: {task.name}")
+
+            # Report page selection
+            if task_update_callback:
+                page_numbers = [p.page_number for p in selected_pages]
+                await task_update_callback('pages_selected', {'task': task, 'page_numbers': page_numbers})
 
             # Step 3: Analyze selected pages to complete the task
             analysis = await self._analyze_pages_for_task(

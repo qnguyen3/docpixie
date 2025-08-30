@@ -75,7 +75,7 @@ class TaskPlanner:
 
             result = await self.provider.process_text_messages(
                 messages=messages,
-                max_tokens=500,
+                max_tokens=1024,
                 temperature=0.3
             )
 
@@ -150,7 +150,7 @@ class TaskPlanner:
 
             result = await self.provider.process_text_messages(
                 messages=messages,
-                max_tokens=500,
+                max_tokens=1024,
                 temperature=0.3
             )
 

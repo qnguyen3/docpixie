@@ -7,7 +7,7 @@ import os
 import sys
 import asyncio
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from datetime import datetime
 
 # Add the docpixie package to path if running from source
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from docpixie import DocPixie, ConversationMessage
 from docpixie.core.config import DocPixieConfig
 from docpixie.models.document import Document, QueryResult
+from docpixie.models.agent import TaskStatus
 
 
 class DocPixieCLI:
@@ -27,6 +28,7 @@ class DocPixieCLI:
         self.docpixie: Optional[DocPixie] = None
         self.indexed_documents: List[Document] = []
         self.conversation_history: List[ConversationMessage] = []
+        self.current_task_plan = None  # Store current task plan for display
 
     def initialize_docpixie(self) -> bool:
         """Initialize DocPixie with OpenRouter and in-memory storage"""
@@ -41,8 +43,8 @@ class DocPixieCLI:
             # Configure DocPixie
             config = DocPixieConfig(
                 provider="openrouter",
-                model="openai/gpt-4.1-mini",
-                vision_model="google/gemini-2.5-flash",
+                model="openai/gpt-5-mini",
+                vision_model="openai/gpt-4.1",
                 storage_type="memory",
                 openrouter_api_key=api_key,
                 jpeg_quality=85,  # Slightly lower quality for faster processing
@@ -146,6 +148,82 @@ class DocPixieCLI:
 
         return "\n".join(output)
 
+    def display_task_plan(self, plan, action="Current"):
+        """Display the current task plan in a formatted way"""
+        print("\n" + "="*60)
+        print(f"📋 {action} Task Plan:")
+        print("="*60)
+
+        for task in plan.tasks:
+            # Determine status icon
+            if task.status == TaskStatus.COMPLETED:
+                icon = "✅"
+            elif task.status == TaskStatus.IN_PROGRESS:
+                icon = "⏳"
+            else:  # PENDING
+                icon = "⏸️ "
+
+            # Get document name if available
+            doc_info = ""
+            if task.document:
+                doc = next((d for d in self.indexed_documents if d.id == task.document), None)
+                if doc:
+                    doc_info = f" [{doc.name}]"
+
+            print(f"  {icon} {task.name}{doc_info}")
+            if task.description:
+                print(f"      {task.description}")
+
+        print("=" * 60)
+
+    def display_task_update(self, event_type: str, data: Any):
+        """Display task plan updates as they happen"""
+        if event_type == 'plan_created':
+            self.current_task_plan = data
+            self.display_task_plan(data, "Initial")
+
+        elif event_type == 'task_started':
+            task = data['task']
+            plan = data['plan']
+            self.current_task_plan = plan
+
+            # Get document name
+            doc_info = ""
+            if task.document:
+                doc = next((d for d in self.indexed_documents if d.id == task.document), None)
+                if doc:
+                    doc_info = f" in {doc.name}"
+
+            print(f"\n🔄 Starting task: {task.name}{doc_info}")
+
+        elif event_type == 'pages_selected':
+            task = data['task']
+            page_numbers = data['page_numbers']
+
+            if page_numbers:
+                pages_str = ", ".join(str(p) for p in page_numbers)
+                print(f"   📑 Selected pages: {pages_str}")
+            else:
+                print(f"   📑 No relevant pages found")
+
+        elif event_type == 'task_completed':
+            task = data['task']
+            result = data['result']
+            plan = data['plan']
+            self.current_task_plan = plan
+
+            pages_analyzed = len(result.selected_pages) if hasattr(result, 'selected_pages') else 0
+            print(f"   ✅ Completed ({pages_analyzed} pages analyzed)")
+
+        elif event_type == 'plan_updated':
+            self.current_task_plan = data
+            print("\n🔧 Task plan updated based on findings:")
+            self.display_task_plan(data, "Updated")
+
+    async def task_update_callback(self, event_type: str, data: Any):
+        """Async callback for task updates"""
+        self.display_task_update(event_type, data)
+
     def chat_loop(self):
         """Main chat interaction loop"""
         self.display_welcome_message()
@@ -169,12 +247,13 @@ class DocPixieCLI:
                     continue
 
                 # Process the query
-                print("\n⏳ Thinking...")
+                print("\n⏳ Processing query...")
 
-                # Query with conversation history
+                # Query with conversation history and task updates
                 result = self.docpixie.query_sync(
                     question=user_input,
-                    conversation_history=self.conversation_history
+                    conversation_history=self.conversation_history,
+                    task_update_callback=self.task_update_callback
                 )
 
                 # Display the result
