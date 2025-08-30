@@ -66,7 +66,6 @@ class LocalStorage(BaseStorage):
                     stored_page = Page(
                         page_number=page.page_number,
                         image_path=str(dest_path),
-                        content_summary=page.content_summary,
                         metadata=page.metadata
                     )
                     stored_pages.append(stored_page)
@@ -84,7 +83,6 @@ class LocalStorage(BaseStorage):
                     {
                         "page_number": page.page_number,
                         "image_path": page.image_path,
-                        "content_summary": page.content_summary,
                         "metadata": page.metadata
                     }
                     for page in stored_pages
@@ -127,7 +125,6 @@ class LocalStorage(BaseStorage):
                 page = Page(
                     page_number=page_data['page_number'],
                     image_path=page_data['image_path'],
-                    content_summary=page_data.get('content_summary'),
                     metadata=page_data.get('metadata', {})
                 )
                 pages.append(page)

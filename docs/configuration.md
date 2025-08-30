@@ -51,7 +51,7 @@ Long histories are summarized to keep prompts efficient:
 
 ## Request and Caching
 
-- `max_retries`, `request_timeout`
+
 - `enable_cache`, `cache_ttl`, `cache_max_size`
 
 ## Environment-Based Config
@@ -82,4 +82,3 @@ Useful helpers for debugging and telemetry:
 pixie.get_stats()           # overall system stats
 pixie.agent.get_agent_stats()  # agent-specific limits and provider
 ```
-

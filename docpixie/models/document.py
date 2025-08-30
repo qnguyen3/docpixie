@@ -13,9 +13,7 @@ from datetime import datetime
 
 class QueryMode(str, Enum):
     """Query processing modes"""
-    FLASH = "flash"  # Quick responses, fewer pages
-    PRO = "pro"      # Comprehensive analysis, more pages
-    AUTO = "auto"    # Automatically select mode based on query
+    AUTO = "auto"    # Standard adaptive processing
 
 
 class DocumentStatus(str, Enum):
@@ -31,7 +29,6 @@ class Page:
     """Represents a single document page"""
     page_number: int
     image_path: str
-    content_summary: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
@@ -67,10 +64,6 @@ class Document:
         """Get total number of pages"""
         return len(self.pages)
     
-    @property
-    def page_summaries(self) -> List[str]:
-        """Get all page summaries"""
-        return [p.content_summary or "" for p in self.pages]
     
     def get_page(self, page_number: int) -> Optional[Page]:
         """Get specific page by number"""
@@ -121,7 +114,6 @@ class DocumentProcessRequest:
     file_path: str
     document_id: Optional[str] = None
     document_name: Optional[str] = None
-    summarize_pages: bool = True
     
     def __post_init__(self):
         """Validate and set defaults"""
@@ -149,6 +141,6 @@ class QueryRequest:
         if not self.query.strip():
             raise ValueError("Query cannot be empty")
         
-        # Set default max_pages based on mode
+        # Set default max_pages
         if self.max_pages is None:
-            self.max_pages = 5 if self.mode == QueryMode.FLASH else 15
+            self.max_pages = 15  # Use standard page limit

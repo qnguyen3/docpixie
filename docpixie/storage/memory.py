@@ -9,7 +9,7 @@ import logging
 import copy
 
 from .base import BaseStorage, StorageError
-from ..models.document import Document
+from ..models.document import Document, Page
 from ..core.config import DocPixieConfig
 
 logger = logging.getLogger(__name__)
@@ -141,14 +141,7 @@ class InMemoryStorage(BaseStorage):
                 summary = self._document_summaries.get(doc_id, '')
                 summary_match = query_lower in summary.lower()
                 
-                # Check page summaries
-                page_summary_match = False
-                for page in document.pages:
-                    if page.content_summary and query_lower in page.content_summary.lower():
-                        page_summary_match = True
-                        break
-                
-                if name_match or summary_match or page_summary_match:
+                if name_match or summary_match:
                     doc_info = {
                         'id': document.id,
                         'name': document.name,
@@ -185,12 +178,6 @@ class InMemoryStorage(BaseStorage):
         summary_matches = summary.lower().count(query)
         score += summary_matches * 2.0
         
-        # Page summary matches
-        page_matches = sum(
-            1 for page in document.pages
-            if page.content_summary and query in page.content_summary.lower()
-        )
-        score += page_matches * 1.0
         
         return score
     

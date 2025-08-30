@@ -42,7 +42,7 @@ class OpenRouterProvider(BaseProvider):
         """Process text-only messages through OpenRouter API"""
         try:
             response = await self.client.chat.completions.create(
-                model=self.config.pro_model,  # Use pro model for text-only
+                model=self.config.model,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature

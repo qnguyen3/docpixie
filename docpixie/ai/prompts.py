@@ -240,34 +240,27 @@ Option 4 - Modify tasks:
 
 Analyze your situation and decide what to do. Output only valid JSON."""
 
-VISION_PAGE_SELECTION_PROMPT = """You are selecting the most relevant document pages to answer a specific question. You will be given page summaries and need to choose which pages are most likely to contain the information needed.
+VISION_PAGE_SELECTION_PROMPT = """Analyze these document page images and select the most relevant pages for this query:
 
-QUESTION: {query}
+QUERY: {query}
 
-AVAILABLE PAGES:
-{page_summaries}
+Look at each page image carefully and determine which pages are most likely to contain information that would help answer the query. Consider:
+1. Text content visible in the page
+2. Charts, graphs, tables, or diagrams that might be relevant
+3. Headers, titles, or section names that relate to the query
+4. Overall page structure and content type
 
-SELECTION CRITERIA:
-1. Choose pages that most likely contain information relevant to the question
-2. Select up to {max_pages} pages maximum
-3. Prioritize pages with specific, relevant information over general overviews
-4. Consider that you're looking for concrete facts, data, or details to answer the question
+Select all pages that are relevant - don't limit yourself to a specific number if multiple pages are needed.
 
-Return a JSON object with the selected page numbers:
-{{
-  "selected_pages": [1, 3, 7],
-  "reason": "Brief explanation of why these pages were selected"
-}}
+Return a JSON object with the page numbers that are most relevant:
+{{"selected_pages": [1, 3, 7], "reasoning": "Brief explanation of why these pages were selected"}}
 
-Analyze the page summaries and select the most relevant pages. Output only valid JSON."""
+Here are the page images to analyze:"""
 
 # =============================================================================
 # ADDITIONAL PROMPTS - For existing components
 # =============================================================================
 
-PAGE_SUMMARIZATION_PROMPT = """You are a document analysis expert. Analyze the document page image and create a concise but comprehensive summary that captures the key information, topics, and content. Focus on what someone would need to know to determine if this page is relevant to their query.
-
-Please analyze this document page and provide a concise summary of its content, including key topics, data, and information present."""
 
 DOCUMENT_SELECTION_PROMPT = """You are a document selection assistant. Analyze the user's query and determine which documents are most likely to contain relevant information.
 

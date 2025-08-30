@@ -22,14 +22,14 @@ graph TB
         Orch --> PS[Page Selector]
         Orch --> AG[Answer Generator]
     end
-    
+
     subgraph "Extensible Components"
         DP --> DPP[Processor Plugins<br/>PDF, Image, DOCX]
         DS --> DSP[Storage Plugins<br/>Local, S3, Memory]
         PS --> VMP1[Vision Model Providers<br/>OpenAI, Anthropic, Local]
         AG --> VMP2[Vision Model Providers]
     end
-    
+
     subgraph "Optional Enhancements"
         Cache[Cache Layer]
         Sum[Summarizer]
@@ -121,12 +121,12 @@ class QueryResult:
 
 class BaseProcessor(ABC):
     """Base class for document processors"""
-    
+
     @abstractmethod
     async def process(self, file_path: str) -> Document:
         """Process a document file into pages"""
         pass
-    
+
     @abstractmethod
     def supports(self, file_path: str) -> bool:
         """Check if processor supports this file type"""
@@ -134,22 +134,22 @@ class BaseProcessor(ABC):
 
 class BaseStorage(ABC):
     """Base class for storage backends"""
-    
+
     @abstractmethod
     async def save_document(self, document: Document) -> str:
         """Save a processed document"""
         pass
-    
+
     @abstractmethod
     async def get_document(self, doc_id: str) -> Optional[Document]:
         """Retrieve a document by ID"""
         pass
-    
+
     @abstractmethod
     async def list_documents(self) -> List[Dict[str, Any]]:
         """List all documents"""
         pass
-    
+
     @abstractmethod
     async def delete_document(self, doc_id: str) -> bool:
         """Delete a document"""
@@ -157,22 +157,22 @@ class BaseStorage(ABC):
 
 class BaseProvider(ABC):
     """Base class for AI vision providers"""
-    
+
     @abstractmethod
     async def process_text_messages(
-        self, 
-        messages: List[dict], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[dict],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process text-only messages through the provider API"""
         pass
-    
+
     @abstractmethod
     async def process_multimodal_messages(
-        self, 
-        messages: List[dict], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[dict],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process messages with text and images through the provider API"""
@@ -189,7 +189,7 @@ from pathlib import Path
 
 class DocPixie:
     """Main DocPixie API class"""
-    
+
     def __init__(
         self,
         provider: Union[str, BaseVisionProvider] = "openai",
@@ -198,10 +198,10 @@ class DocPixie:
     ):
         """
         Initialize DocPixie
-        
+
         Args:
             provider: Vision provider name or instance
-            storage: Storage backend name or instance  
+            storage: Storage backend name or instance
             config: Configuration object
         """
         self.config = config or DocPixieConfig()
@@ -212,30 +212,30 @@ class DocPixie:
             storage=self.storage,
             config=self.config
         )
-    
+
     async def add_document(
-        self, 
+        self,
         file_path: Union[str, Path],
         document_id: Optional[str] = None,
         summarize: bool = True
     ) -> Document:
         """
         Add a document to the RAG system
-        
+
         Args:
             file_path: Path to document file
             document_id: Optional custom ID
             summarize: Whether to generate page summaries
-            
+
         Returns:
             Processed Document object
         """
         return await self.orchestrator.add_document(
-            file_path, 
-            document_id, 
+            file_path,
+            document_id,
             summarize
         )
-    
+
     async def query(
         self,
         question: str,
@@ -245,13 +245,13 @@ class DocPixie:
     ) -> Union[QueryResult, AsyncGenerator[str, None]]:
         """
         Query documents with a question
-        
+
         Args:
             question: User's question
             document_ids: Specific documents to search (None = all)
             max_pages: Maximum pages to use for context
             stream: Whether to stream the response
-            
+
         Returns:
             QueryResult or async generator for streaming
         """
@@ -261,16 +261,16 @@ class DocPixie:
             max_pages,
             stream
         )
-    
+
     def add_middleware(self, middleware: BaseMiddleware):
         """Add middleware to the pipeline"""
         self.orchestrator.add_middleware(middleware)
-    
+
     # Convenience sync methods for easier adoption
     def add_document_sync(self, file_path: str, **kwargs) -> Document:
         """Synchronous version of add_document"""
         return sync_wrapper(self.add_document(file_path, **kwargs))
-    
+
     def query_sync(self, question: str, **kwargs) -> QueryResult:
         """Synchronous version of query"""
         return sync_wrapper(self.query(question, **kwargs))
@@ -283,75 +283,75 @@ class DocPixie:
 
 class Orchestrator:
     """Manages the RAG pipeline"""
-    
+
     def __init__(self, provider, storage, config):
         self.provider = provider
         self.storage = storage
         self.config = config
         self.processor_factory = ProcessorFactory()
         self.middlewares = []
-    
+
     async def add_document(self, file_path, document_id, summarize):
         # 1. Select appropriate processor
         processor = self.processor_factory.get_processor(file_path)
-        
+
         # 2. Process document to pages
         document = await processor.process(file_path)
         document.id = document_id or generate_id()
-        
+
         # 3. Generate page summaries (optional)
         if summarize:
             for page in document.pages:
                 page.content_summary = await self.provider.summarize_page(page)
-            
+
             # Generate document summary from page summaries
             document.summary = await self._generate_doc_summary(document)
-        
+
         # 4. Save to storage
         await self.storage.save_document(document)
-        
+
         return document
-    
+
     async def query(self, question, document_ids, max_pages, stream):
         # 1. Retrieve relevant documents
         documents = await self._get_documents(document_ids)
-        
+
         # 2. Collect all pages
         all_pages = []
         for doc in documents:
             all_pages.extend(doc.pages)
-        
+
         # 3. Smart page selection using vision model
         selected_pages = await self.provider.select_pages(
-            question, 
+            question,
             all_pages,
             max_pages
         )
-        
+
         # 4. Generate answer
         if stream:
             return self._stream_answer(question, selected_pages)
         else:
             answer_text = ""
             async for chunk in self.provider.generate_answer(
-                question, 
-                selected_pages, 
+                question,
+                selected_pages,
                 stream=False
             ):
                 answer_text += chunk
-            
+
             return QueryResult(
                 answer=answer_text,
                 selected_pages=selected_pages,
                 confidence=self._calculate_confidence(selected_pages),
                 metadata={"documents_searched": len(documents)}
             )
-    
+
     async def _stream_answer(self, question, pages):
         """Stream answer generation"""
         async for chunk in self.provider.generate_answer(
-            question, 
-            pages, 
+            question,
+            pages,
             stream=True
         ):
             yield chunk
@@ -366,15 +366,15 @@ The architecture maintains clean separation between raw API operations (provider
 
 class OpenAIProvider(BaseProvider):
     """OpenAI provider for raw API operations"""
-    
+
     def __init__(self, config: DocPixieConfig):
         self.client = AsyncOpenAI(api_key=config.openai_api_key)
         self.model = config.vision_model
-    
+
     async def process_text_messages(
-        self, 
-        messages: List[Dict[str, Any]], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process text-only messages through OpenAI API"""
@@ -385,16 +385,16 @@ class OpenAIProvider(BaseProvider):
             temperature=temperature
         )
         return response.choices[0].message.content.strip()
-    
+
     async def process_multimodal_messages(
-        self, 
-        messages: List[Dict[str, Any]], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process multimodal messages through OpenAI Vision API"""
         processed_messages = self._prepare_openai_messages(messages)
-        
+
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=processed_messages,
@@ -409,23 +409,23 @@ class OpenAIProvider(BaseProvider):
 
 class PageSummarizer:
     """Handles page and document summarization business logic"""
-    
+
     def __init__(self, config: DocPixieConfig, provider: Optional[BaseProvider] = None):
         self.config = config
         self.provider = provider or create_provider(config)
-    
+
     async def summarize_pages(self, pages: List[Page]) -> List[Page]:
         """Generate summaries for multiple pages in parallel"""
         # Business logic for batching and parallel processing
         batch_size = self.config.batch_size
         summarized_pages = []
-        
+
         for i in range(0, len(pages), batch_size):
             batch = pages[i:i + batch_size]
             batch_tasks = [self._summarize_single_page(page) for page in batch]
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
             # Handle results...
-    
+
     async def _summarize_single_page(self, page: Page) -> Page:
         """Summarize a single page using provider"""
         # Build prompt and messages for page summary
@@ -435,19 +435,19 @@ class PageSummarizer:
                 "content": "You are a document analysis expert. Analyze the document page image..."
             },
             {
-                "role": "user", 
+                "role": "user",
                 "content": [
                     {"type": "text", "text": "Please analyze this document page..."},
                     {"type": "image_path", "image_path": page.image_path, "detail": "high"}
                 ]
             }
         ]
-        
+
         # Use provider for raw API call
         summary = await self.provider.process_multimodal_messages(
             messages=messages, max_tokens=200, temperature=0.3
         )
-        
+
         # Return new page with summary
         return Page(
             page_number=page.page_number,
@@ -455,7 +455,7 @@ class PageSummarizer:
             content_summary=summary,
             metadata={**page.metadata, 'summary_generated': True}
         )
-    
+
     async def _generate_document_summary(self, pages: List[Page], document_name: str) -> str:
         """Generate document summary using ALL page images in single call"""
         # Build messages with all page images
@@ -471,7 +471,7 @@ class PageSummarizer:
                 ]
             }
         ]
-        
+
         # Add all page images to the user message
         for i, page in enumerate(pages):
             messages[1]["content"].append({
@@ -483,12 +483,12 @@ class PageSummarizer:
                 "type": "text",
                 "text": f"[Page {i + 1}]"
             })
-        
+
         # Use provider for raw API call
         summary = await self.provider.process_multimodal_messages(
             messages=messages, max_tokens=400, temperature=0.3
         )
-        
+
         return summary
 ```
 
@@ -503,11 +503,11 @@ from docpixie import DocPixie
 async def main():
     # Initialize with defaults (OpenAI provider, local storage)
     rag = DocPixie(api_key="your-openai-key")
-    
+
     # Add a document
     doc = await rag.add_document("research_paper.pdf")
     print(f"Added document: {doc.name}")
-    
+
     # Query the document
     result = await rag.query("What are the main findings?")
     print(f"Answer: {result.answer}")
@@ -516,7 +516,7 @@ async def main():
 # Synchronous usage for simpler scripts
 def simple_example():
     rag = DocPixie(api_key="your-openai-key")
-    
+
     # Sync methods available
     doc = rag.add_document_sync("report.pdf")
     result = rag.query_sync("Summarize the conclusions")
@@ -569,12 +569,12 @@ from docpixie.providers import BaseProvider
 
 class CustomProvider(BaseProvider):
     """Custom provider implementation"""
-    
+
     async def process_text_messages(self, messages, max_tokens=300, temperature=0.3):
         # Your custom text processing logic
         # Could use local models, different APIs, etc.
         pass
-    
+
     async def process_multimodal_messages(self, messages, max_tokens=300, temperature=0.3):
         # Your custom multimodal processing
         # Handle image_path type in messages and convert as needed
@@ -625,31 +625,25 @@ rag = DocPixie(provider=CustomProvider())
 @dataclass
 class DocPixieConfig:
     """DocPixie configuration"""
-    
+
     # Image processing
     max_image_size: Tuple[int, int] = (2048, 2048)
     jpeg_quality: int = 90
     thumbnail_size: Tuple[int, int] = (256, 256)
-    
+
     # Processing
     batch_size: int = 10
     page_summary_enabled: bool = True
     doc_summary_enabled: bool = True
-    
+
     # Selection
     default_max_pages: int = 5
     selection_strategy: str = "vision"  # or "summary_based"
-    
-    # Providers
-    provider_timeout: int = 60
-    provider_max_retries: int = 3
-    
+
     # Storage
     storage_path: str = "./docpixie_data"
-    
-    # Cache
-    cache_enabled: bool = False
-    cache_ttl: int = 3600
+
+
 ```
 
 ## Performance Optimizations

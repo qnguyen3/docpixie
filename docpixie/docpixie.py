@@ -86,8 +86,7 @@ class DocPixie:
         self,
         file_path: Union[str, Path],
         document_id: Optional[str] = None,
-        document_name: Optional[str] = None,
-        summarize: bool = True
+        document_name: Optional[str] = None
     ) -> Document:
         """
         Add a document to the RAG system
@@ -96,10 +95,9 @@ class DocPixie:
             file_path: Path to document file (PDF, image, etc.)
             document_id: Optional custom document ID
             document_name: Optional custom document name
-            summarize: Whether to generate page summaries
             
         Returns:
-            Processed Document object
+            Processed Document object with summary
         """
         file_path = str(file_path)
         logger.info(f"Adding document: {file_path}")
@@ -112,10 +110,9 @@ class DocPixie:
         if document_name:
             document.name = document_name
         
-        # Generate page summaries if requested
-        if summarize and self.config.page_summary_enabled:
-            logger.info(f"Generating summaries for {len(document.pages)} pages")
-            document = await self.summarizer.summarize_document(document)
+        # Always generate document summary
+        logger.info(f"Generating document summary for {document.name}")
+        document = await self.summarizer.summarize_document(document)
         
         # Save to storage
         document.status = DocumentStatus.COMPLETED
@@ -260,8 +257,6 @@ class DocPixie:
             'config': {
                 'provider': self.config.provider,
                 'storage_type': self.config.storage_type,
-                'flash_max_pages': self.config.flash_max_pages,
-                'pro_max_pages': self.config.pro_max_pages,
                 'max_agent_iterations': self.config.max_agent_iterations,
                 'max_pages_per_task': self.config.max_pages_per_task
             },
@@ -278,11 +273,10 @@ class DocPixie:
         self,
         file_path: Union[str, Path],
         document_id: Optional[str] = None,
-        document_name: Optional[str] = None,
-        summarize: bool = True
+        document_name: Optional[str] = None
     ) -> Document:
         """Synchronous version of add_document"""
-        return sync_wrapper(self.add_document(file_path, document_id, document_name, summarize))
+        return sync_wrapper(self.add_document(file_path, document_id, document_name))
     
     def get_document_sync(self, document_id: str) -> Optional[Document]:
         """Synchronous version of get_document"""
