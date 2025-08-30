@@ -64,6 +64,11 @@ class DocPixieConfig:
     max_tasks_per_plan: int = 4    # Maximum tasks in initial plan
     enable_conversation: bool = True  # Enable conversation support
     
+    # Conversation Processing Settings
+    max_conversation_turns: int = 8  # When to start summarizing conversation
+    turns_to_summarize: int = 5      # How many turns to summarize
+    turns_to_keep_full: int = 3      # How many recent turns to keep in full
+    
     # Logging
     log_level: str = "INFO"
     log_requests: bool = False

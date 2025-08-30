@@ -41,6 +41,7 @@ class AgentTask:
     name: str = ""
     description: str = ""
     status: TaskStatus = TaskStatus.PENDING
+    document: str = ""  # Single document ID assigned to this task
     
     def __post_init__(self):
         """Validate task data"""

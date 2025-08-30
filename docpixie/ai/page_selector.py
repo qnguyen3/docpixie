@@ -5,11 +5,12 @@ Selects relevant pages by analyzing page images directly with vision models
 
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ..models.document import Page
 from ..providers.base import BaseProvider
 from ..core.config import DocPixieConfig
+from ..exceptions import PageSelectionError
 from .prompts import SYSTEM_PAGE_SELECTOR
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class VisionPageSelector:
     async def select_pages_for_task(
         self, 
         query: str, 
-        all_pages: List[Page], 
+        task_pages: List[Page], 
         max_pages: int = 6
     ) -> List[Page]:
         """
@@ -36,25 +37,28 @@ class VisionPageSelector:
         
         Args:
             query: The question/task to find pages for
-            all_pages: All available pages from all documents
+            task_pages: Pages from the task's assigned document
             max_pages: Maximum number of pages to select
             
         Returns:
             List of selected pages, ordered by relevance
+            
+        Raises:
+            PageSelectionError: If page selection fails
         """
-        if not all_pages:
+        if not task_pages:
             logger.warning("No pages provided for selection")
             return []
         
-        if len(all_pages) <= max_pages:
-            logger.info(f"Only {len(all_pages)} pages available, returning all")
-            return all_pages
+        if len(task_pages) <= max_pages:
+            logger.info(f"Only {len(task_pages)} pages available, returning all")
+            return task_pages
         
         try:
-            logger.info(f"Selecting {max_pages} most relevant pages from {len(all_pages)} total pages")
+            logger.info(f"Selecting {max_pages} most relevant pages from {len(task_pages)} task pages")
             
             # Build vision-based selection message
-            messages = self._build_vision_selection_messages(query, all_pages, max_pages)
+            messages = self._build_vision_selection_messages(query, task_pages, max_pages)
             
             # Use vision model to analyze page images and select best ones
             result = await self.provider.process_multimodal_messages(
@@ -64,16 +68,14 @@ class VisionPageSelector:
             )
             
             # Parse selection result
-            selected_pages = self._parse_page_selection(result, all_pages, max_pages)
+            selected_pages = self._parse_page_selection(result, task_pages, max_pages)
             
             logger.info(f"Successfully selected {len(selected_pages)} pages")
             return selected_pages
             
         except Exception as e:
             logger.error(f"Vision page selection failed: {e}")
-            # Fallback: return first N pages
-            logger.warning(f"Falling back to first {max_pages} pages")
-            return all_pages[:max_pages]
+            raise PageSelectionError(f"Failed to select pages for task: {e}")
     
     def _build_vision_selection_messages(
         self, 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DocPixie is a lightweight multimodal RAG library that uses vision AI instead of embeddings/vector databases. Documents are processed as images and analyzed using vision language models for both understanding and page selection.
 
-**Current Status**: Phase 1 complete (document processing, storage, configuration, page summarization). Phase 2 in progress (vision-based page selection and full RAG pipeline).
+**Current Status**: Phase 1 ✅ complete (document processing, storage, configuration, page summarization). Phase 2 🚧 in progress - adaptive RAG agent implementation (vision-based page selection, dynamic task planning, conversation processing).
 
 ## Development Commands
 
@@ -59,7 +59,7 @@ The codebase uses a clean separation between **raw API operations** and **busine
 1. **Provider-Agnostic Configuration**: Uses generic `flash_model`, `pro_model`, `vision_model` fields that work across all providers
 2. **Automatic Provider Defaults**: `DocPixieConfig._set_provider_defaults()` sets appropriate models based on selected provider
 3. **Image-Based Processing**: All documents converted to images via PyMuPDF, preserving visual information
-4. **Flash/Pro Modes**: Two complexity levels - Flash (5 pages, fast) vs Pro (15 pages, comprehensive)
+4. **Adaptive RAG Agent**: Single adaptive mode that dynamically plans and re-evaluates tasks based on findings (replaces Flash/Pro modes in Phase 2)
 
 ### Provider Implementation Pattern
 When adding new providers:
@@ -74,12 +74,12 @@ Example: OpenRouter provider uses OpenAI client with `base_url="https://openrout
 1. **PDF → Images**: PyMuPDF converts PDF pages to optimized JPEGs
 2. **Storage**: Local filesystem or in-memory storage via pluggable backends
 3. **Summarization**: Vision models analyze all page images in single API call for document summary
-4. **Page Selection** (Phase 2): Vision-based selection instead of vector similarity
+4. **Adaptive RAG Pipeline** (Phase 2): Vision-based page selection + dynamic task planning + conversation processing
 
 ### Configuration System
 - Environment-first approach: API keys loaded from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`
 - Provider-agnostic model configuration
-- Mode-specific settings (flash vs pro timeouts, page limits, vision detail)
+- Agent-specific settings (max iterations, pages per task, conversation context)
 - Test API key support: Use `"test-key"` to bypass validation during testing
 
 ### File Structure Significance
@@ -94,14 +94,26 @@ docpixie/
 │   ├── openrouter.py      # OpenRouter using OpenAI client + different base_url
 │   └── factory.py         # Provider creation and validation
 ├── ai/                     # Business logic layer
-│   └── summarizer.py      # Page/document summarization workflows
+│   ├── summarizer.py      # Page/document summarization workflows
+│   ├── agent.py           # Main adaptive RAG agent orchestrator  
+│   ├── task_planner.py    # Dynamic task planning with document selection
+│   ├── page_selector.py   # Vision-based page selection
+│   ├── context_processor.py # Conversation summarization
+│   ├── query_reformulator.py # Reference resolution
+│   ├── query_classifier.py # Document need classification
+│   ├── synthesizer.py     # Response synthesis
+│   └── prompts.py         # All AI prompts
 ├── processors/             # Document-to-image conversion
 │   ├── pdf.py             # PyMuPDF implementation
 │   └── factory.py         # Auto-detection of processor type
 ├── storage/                # Pluggable storage backends
 │   ├── local.py           # Filesystem storage
 │   └── memory.py          # In-memory storage (for testing)
-└── models/document.py      # Core data models without embeddings
+├── models/
+│   ├── document.py        # Core data models without embeddings
+│   └── agent.py           # Agent task/plan data models
+├── exceptions.py          # Custom exception classes
+└── __init__.py            # Main API entry point
 ```
 
 ## Important Implementation Details
@@ -118,8 +130,14 @@ All providers receive messages with `image_path` type, then convert to their spe
 - Anthropic: `image` with base64 data  
 - OpenRouter: Same as OpenAI
 
-### Flash vs Pro Mode Implementation
-Configuration provides mode-specific settings accessed via `config.get_mode_config(mode)`. Providers don't know about modes - business logic layer handles mode differences.
+### Adaptive RAG Agent Implementation
+The agent operates in a single adaptive mode with dynamic task planning:
+1. **Context Processing**: Summarizes conversation when > 8 turns
+2. **Query Reformulation**: Resolves references using context (outputs JSON)
+3. **Query Classification**: Determines if documents needed (reasoning + needs_documents)
+4. **Task Planning**: Creates 2-4 focused tasks with single document assignments
+5. **Adaptive Execution**: Re-evaluates and modifies task list after each completion
+6. **Response Synthesis**: Combines all task findings into comprehensive response
 
 ## Environment Variables
 
@@ -132,8 +150,8 @@ OPENROUTER_API_KEY=your_openrouter_key
 # Optional configuration overrides
 DOCPIXIE_PROVIDER=openai|anthropic|openrouter
 DOCPIXIE_STORAGE_PATH=./docpixie_data
-DOCPIXIE_FLASH_MAX_PAGES=5
-DOCPIXIE_PRO_MAX_PAGES=15
+DOCPIXIE_MAX_AGENT_ITERATIONS=5
+DOCPIXIE_MAX_PAGES_PER_TASK=6
 DOCPIXIE_JPEG_QUALITY=90
 ```
 
@@ -142,7 +160,21 @@ DOCPIXIE_JPEG_QUALITY=90
 This codebase implements a phased approach documented in `DOCPIXIE_IMPLEMENTATION_PLAN.md`:
 
 - **Phase 1 ✅**: Document processing, storage, configuration, page summarization
-- **Phase 2 🚧**: Vision-based page selection, complete RAG pipeline  
-- **Phase 3+**: Advanced features, optimizations
+- **Phase 2 🚧**: Adaptive RAG agent (vision-based page selection, dynamic task planning, conversation processing)
+- **Phase 3+**: Testing, examples, documentation, advanced features
 
-Current work focuses on Phase 2 implementation. The architecture is designed to support the full vision-based RAG pipeline without embeddings or vector databases.
+Current work focuses on Phase 2 implementation. The architecture is designed to support the full adaptive RAG pipeline with single-mode operation replacing Flash/Pro modes.
+
+## Development Guidelines
+
+### Code Modification Priority
+**CRITICAL**: When implementing new features, always prioritize modifying existing code over creating new files or methods unless absolutely necessary. This maintains codebase coherence and avoids unnecessary duplication.
+
+### Error Handling Philosophy
+Error handling should be simple and direct - raise appropriate custom exceptions from `docpixie/exceptions.py` instead of implementing fallback mechanisms. This ensures clear failure modes and easier debugging.
+
+### Prompt Management
+All AI prompts must be centralized in `docpixie/ai/prompts.py`. This includes system prompts, user prompts, and any template strings used for AI interactions. Never embed prompts directly in component files.
+
+### Agent Task Architecture
+Each agent task should be assigned to exactly **one document** (not multiple). This simplifies page selection and analysis while maintaining clear scope boundaries.

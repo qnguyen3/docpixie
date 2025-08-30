@@ -14,6 +14,13 @@ from ..models.document import Document, Page
 from ..providers.base import BaseProvider
 from ..storage.base import BaseStorage
 from ..core.config import DocPixieConfig
+from ..exceptions import (
+    ContextProcessingError, QueryReformulationError, QueryClassificationError,
+    TaskPlanningError, PageSelectionError, TaskAnalysisError, ResponseSynthesisError
+)
+from .context_processor import ContextProcessor
+from .query_reformulator import QueryReformulator
+from .query_classifier import QueryClassifier
 from .task_planner import TaskPlanner
 from .page_selector import VisionPageSelector
 from .synthesizer import ResponseSynthesizer
@@ -44,6 +51,9 @@ class PixieRAGAgent:
         self.config = config
         
         # Initialize components
+        self.context_processor = ContextProcessor(provider, config)
+        self.query_reformulator = QueryReformulator(provider)
+        self.query_classifier = QueryClassifier(provider)
         self.task_planner = TaskPlanner(provider)
         self.page_selector = VisionPageSelector(provider, config)
         self.synthesizer = ResponseSynthesizer(provider)
@@ -70,28 +80,53 @@ class PixieRAGAgent:
         try:
             logger.info(f"Processing query: {query[:100]}...")
             
-            # Step 1: Get all available documents and pages
+            # Step 1: Context Processing (conversation summarization if needed)
+            processed_context = ""
+            display_messages = conversation_history or []
+            
+            if conversation_history:
+                processed_context, display_messages = await self.context_processor.process_conversation_context(
+                    conversation_history, query
+                )
+                logger.info("Processed conversation context")
+            
+            # Step 2: Query Reformulation (if conversation context exists)
+            reformulated_query = query
+            if conversation_history:
+                reformulated_query = await self.query_reformulator.reformulate_with_context(
+                    query, processed_context
+                )
+                logger.info(f"Reformulated query: '{query}' → '{reformulated_query}'")
+            
+            # Step 3: Query Classification
+            classification = await self.query_classifier.classify_query(reformulated_query)
+            logger.info(f"Query classification: {classification['reasoning']}")
+            
+            # If query doesn't need documents, return direct answer
+            if not classification["needs_documents"]:
+                return self._create_direct_answer_result(query, classification["reasoning"])
+            
+            # Step 4: Get all available documents and pages
             documents = await self.storage.get_all_documents()
-            all_pages = await self.storage.get_all_pages()
             
             if not documents:
                 logger.warning("No documents available for analysis")
                 return self._create_no_documents_result(query)
             
-            logger.info(f"Found {len(documents)} documents with {len(all_pages)} total pages")
+            logger.info(f"Found {len(documents)} documents")
             
-            # Step 2: Create initial task plan
-            task_plan = await self.task_planner.create_initial_plan(query, documents)
+            # Step 5: Task Planning + Document Selection (merged)
+            task_plan = await self.task_planner.create_initial_plan(reformulated_query, documents)
             
-            # Step 3: Execute tasks adaptively
+            # Step 6: Execute tasks adaptively
             task_results = await self._execute_adaptive_plan(
-                task_plan, query, all_pages, conversation_history
+                task_plan, reformulated_query, documents, conversation_history
             )
             
-            # Step 4: Synthesize final response
-            final_answer = await self.synthesizer.synthesize_response(query, task_results)
+            # Step 7: Synthesize final response
+            final_answer = await self.synthesizer.synthesize_response(reformulated_query, task_results)
             
-            # Step 5: Build final result
+            # Step 8: Build final result
             processing_time = time.time() - start_time
             all_selected_pages = []
             for result in task_results:
@@ -118,7 +153,7 @@ class PixieRAGAgent:
         self,
         task_plan: TaskPlan,
         original_query: str,
-        all_pages: List[Page],
+        documents: List[Document],
         conversation_history: Optional[List[ConversationMessage]] = None
     ) -> List[TaskResult]:
         """Execute task plan with adaptive replanning"""
@@ -141,7 +176,7 @@ class PixieRAGAgent:
             
             # Execute the task
             task_result = await self._execute_single_task(
-                current_task, all_pages, original_query, conversation_history
+                current_task, documents, original_query, conversation_history
             )
             
             # Mark task completed
@@ -155,7 +190,7 @@ class PixieRAGAgent:
             if task_plan.has_pending_tasks():
                 logger.info("Checking if task plan needs updating...")
                 task_plan = await self.task_planner.update_plan(
-                    task_plan, task_result, original_query
+                    task_plan, task_result, original_query, documents
                 )
             
         task_plan.current_iteration = iteration
@@ -165,27 +200,44 @@ class PixieRAGAgent:
     async def _execute_single_task(
         self,
         task: Any,  # AgentTask
-        all_pages: List[Page],
+        documents: List[Document],
         original_query: str,
         conversation_history: Optional[List[ConversationMessage]] = None
     ) -> TaskResult:
-        """Execute a single task: page selection + analysis"""
+        """Execute a single task: document filtering + page selection + analysis"""
         try:
-            # Step 1: Select relevant pages for this task
+            # Step 1: Filter pages to only the task's assigned document
+            task_pages = []
+            if task.document:
+                # Find the document assigned to this task
+                task_doc = next((doc for doc in documents if doc.id == task.document), None)
+                if task_doc:
+                    task_pages = task_doc.pages
+                    logger.info(f"Task {task.name} assigned to document: {task_doc.name} ({len(task_pages)} pages)")
+                else:
+                    logger.warning(f"Task {task.name} assigned to document {task.document} but document not found")
+            else:
+                # No specific document assigned - use all pages (fallback)
+                task_pages = []
+                for doc in documents:
+                    task_pages.extend(doc.pages)
+                logger.warning(f"Task {task.name} has no document assignment, using all pages")
+            
+            # Step 2: Select relevant pages for this task
             selected_pages = await self.page_selector.select_pages_for_task(
                 query=task.description,  # Use task description as selection query
-                all_pages=all_pages,
+                task_pages=task_pages,
                 max_pages=self.config.max_pages_per_task
             )
             
             logger.info(f"Selected {len(selected_pages)} pages for task: {task.name}")
             
-            # Step 2: Analyze selected pages to complete the task
+            # Step 3: Analyze selected pages to complete the task
             analysis = await self._analyze_pages_for_task(
                 task, selected_pages, original_query, conversation_history
             )
             
-            # Step 3: Create task result
+            # Step 4: Create task result
             return TaskResult(
                 task=task,
                 selected_pages=selected_pages,
@@ -308,6 +360,17 @@ class PixieRAGAgent:
             task_results=[],
             total_iterations=0,
             processing_time_seconds=processing_time
+        )
+    
+    def _create_direct_answer_result(self, query: str, reasoning: str) -> QueryResult:
+        """Create result when query doesn't need document analysis"""
+        return QueryResult(
+            query=query,
+            answer=f"This query doesn't require document analysis. {reasoning}",
+            selected_pages=[],
+            task_results=[],
+            total_iterations=0,
+            processing_time_seconds=0.0
         )
     
     async def process_conversation_query(

@@ -132,25 +132,39 @@ TASK CREATION RULES:
 2. Each task should look for specific information needed to answer the query
 3. Keep task names clear and under 30 characters
 4. Task descriptions should be specific about what information to find
-5. Don't create more than 4 tasks for the initial plan
+5. For each task, specify which documents are most relevant to search
+6. Don't create more than 4 tasks for the initial plan
 
 OUTPUT FORMAT:
 Return a JSON object with a "tasks" array. Each task should have:
 - "name": Short, clear task name
 - "description": Specific description of what information to find
+- "document": Single document ID that is most relevant for this task
 
 EXAMPLE:
 Query: "What were our Q3 financial results?"
+Available Documents:
+doc_1: Q3 Financial Report
+Summary: This document contains comprehensive Q3 financial data including revenue breakdowns by product line, operating expenses, profit margins, and comparative analysis with Q2 results. Includes detailed income statements and cash flow analysis.
+
+doc_2: Annual Budget Planning  
+Summary: Contains budget allocations for the full fiscal year, projected expenses by department, and variance analysis comparing actual vs budgeted amounts for Q1-Q3.
+
+doc_3: Marketing Campaign Results
+Summary: Performance metrics for Q3 marketing campaigns including ROI, customer acquisition costs, and conversion rates across different channels.
+
 Output:
 {{
   "tasks": [
     {{
       "name": "Find Q3 Revenue Data",
-      "description": "Locate Q3 revenue figures, sales numbers, and income statements"
+      "description": "Locate Q3 revenue figures, sales numbers, and income statements",
+      "document": "doc_1"
     }},
     {{
       "name": "Gather Q3 Expense Information", 
-      "description": "Find Q3 operating expenses, costs, and expenditure details"
+      "description": "Find Q3 operating expenses, costs, and expenditure details",
+      "document": "doc_2"
     }}
   ]
 }}
@@ -160,6 +174,9 @@ Create your initial task plan now. Output only valid JSON."""
 ADAPTIVE_PLAN_UPDATE_PROMPT = """You are an adaptive agent updating your task plan based on new information. Analyze what you've learned and decide if you need to modify your remaining tasks.
 
 ORIGINAL QUERY: {original_query}
+
+AVAILABLE DOCUMENTS:
+{available_documents}
 
 CURRENT TASK PLAN STATUS:
 {current_plan_status}
@@ -194,7 +211,8 @@ Option 2 - Add new tasks:
   "new_tasks": [
     {{
       "name": "Task name",
-      "description": "What this new task should find"
+      "description": "What this new task should find",
+      "document": "document_id_to_search"
     }}
   ]
 }}
@@ -214,7 +232,8 @@ Option 4 - Modify tasks:
     {{
       "task_id": "existing_task_id",
       "new_name": "Updated name",
-      "new_description": "Updated description"
+      "new_description": "Updated description",
+      "new_document": "new_document_id_to_search"
     }}
   ]
 }}
@@ -334,3 +353,72 @@ Output:
 }}
 
 Return a JSON object with the reformulated query. Output only valid JSON."""
+
+# =============================================================================
+# CONTEXT PROCESSING PROMPTS
+# =============================================================================
+
+CONVERSATION_SUMMARIZATION_PROMPT = """Summarize the following conversation, focusing on:
+1. The main topics discussed
+2. Key questions asked by the user
+3. Important information or conclusions
+4. Any unresolved questions or ongoing discussions
+
+Keep the summary concise but comprehensive.
+
+Conversation:
+{conversation_text}
+
+Summary:"""
+
+# =============================================================================
+# QUERY CLASSIFICATION PROMPTS
+# =============================================================================
+
+SYSTEM_QUERY_CLASSIFIER = """You are a query classification expert. Always respond with valid JSON."""
+
+QUERY_CLASSIFICATION_PROMPT = """Analyze the user's query and determine if it needs document retrieval to answer.
+
+QUERY: {query}
+
+Think about whether this query requires searching through documents to provide a complete answer, or if it can be answered directly without documents.
+
+OUTPUT FORMAT (JSON only):
+{{
+  "reasoning": "Brief explanation of why this query does or doesn't need documents",
+  "needs_documents": true/false
+}}
+
+Examples:
+
+Query: "What were the Q3 revenues?"
+{{
+  "reasoning": "This asks for specific financial data that would be found in documents",
+  "needs_documents": true
+}}
+
+Query: "How does it compare to last year?"
+{{
+  "reasoning": "This is a comparison question requiring data from documents",
+  "needs_documents": true
+}}
+
+Query: "Hello, how are you?"
+{{
+  "reasoning": "This is a greeting that doesn't require any document information",
+  "needs_documents": false
+}}
+
+Query: "What's the weather like?"
+{{
+  "reasoning": "This is a general question that doesn't relate to any documents",
+  "needs_documents": false
+}}
+
+Query: "Summarize the main findings"
+{{
+  "reasoning": "This requires extracting and summarizing information from documents",
+  "needs_documents": true
+}}
+
+Analyze the query and return only valid JSON."""

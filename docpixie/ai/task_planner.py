@@ -11,6 +11,7 @@ from typing import List, Optional
 from ..models.agent import AgentTask, TaskPlan, TaskResult, TaskStatus
 from ..models.document import Document
 from ..providers.base import BaseProvider
+from ..exceptions import TaskPlanningError
 from .prompts import (
     ADAPTIVE_INITIAL_PLANNING_PROMPT,
     ADAPTIVE_PLAN_UPDATE_PROMPT,
@@ -35,28 +36,31 @@ class TaskPlanner:
         documents: Optional[List[Document]] = None
     ) -> TaskPlan:
         """
-        Create initial task plan from user query
+        Create initial task plan from user query with document selection
         
         Args:
             query: User's question/request
-            documents: Available documents (optional, for context)
+            documents: Available documents (required for document selection)
             
         Returns:
-            TaskPlan with 2-4 initial tasks
+            TaskPlan with 2-4 initial tasks, each with assigned documents
+            
+        Raises:
+            TaskPlanningError: If task planning fails
         """
         try:
             logger.info(f"Creating initial task plan for query: {query[:50]}...")
             
-            # Build context about available documents
+            # Build context about available documents with full summaries
             documents_text = ""
             if documents:
                 doc_list = []
-                for i, doc in enumerate(documents[:10], 1):  # Limit to first 10 for context
+                for doc in documents:
                     summary = doc.summary or f"Document with {len(doc.pages)} pages"
-                    doc_list.append(f"{i}. {doc.name}: {summary}")
-                documents_text = "\n".join(doc_list)
+                    doc_list.append(f"{doc.id}: {doc.name}\nSummary: {summary}")
+                documents_text = "\n\n".join(doc_list)
             else:
-                documents_text = "Document information will be gathered during task execution"
+                documents_text = "No documents available"
             
             # Generate initial plan
             prompt = ADAPTIVE_INITIAL_PLANNING_PROMPT.format(
@@ -71,28 +75,29 @@ class TaskPlanner:
             
             result = await self.provider.process_text_messages(
                 messages=messages,
-                max_tokens=400,
+                max_tokens=500,
                 temperature=0.3
             )
             
             # Parse and create task plan
-            task_plan = self._parse_initial_plan(result, query)
+            task_plan = self._parse_initial_plan(result, query, documents)
             
             logger.info(f"Created initial plan with {len(task_plan.tasks)} tasks")
             for task in task_plan.tasks:
-                logger.debug(f"Task: {task.name} - {task.description}")
+                logger.debug(f"Task: {task.name} - Document: {task.document}")
             
             return task_plan
             
         except Exception as e:
             logger.error(f"Failed to create initial plan: {e}")
-            return self._create_fallback_plan(query)
+            raise TaskPlanningError(f"Failed to create initial task plan: {e}")
     
     async def update_plan(
         self,
         current_plan: TaskPlan,
         latest_result: TaskResult,
-        original_query: str
+        original_query: str,
+        documents: Optional[List[Document]] = None
     ) -> TaskPlan:
         """
         Adaptively update task plan based on latest findings
@@ -102,6 +107,7 @@ class TaskPlanner:
             current_plan: Current task plan
             latest_result: Result from the task just completed
             original_query: Original user query for context
+            documents: Available documents (for new task assignments)
             
         Returns:
             Updated task plan (may have added/removed/modified tasks)
@@ -115,9 +121,21 @@ class TaskPlanner:
             # Build progress summary from completed tasks
             progress_summary = self._build_progress_summary(current_plan, latest_result)
             
+            # Build available documents text with full summaries
+            available_documents = ""
+            if documents:
+                doc_list = []
+                for doc in documents:
+                    summary = doc.summary or f"Document with {len(doc.pages)} pages"
+                    doc_list.append(f"{doc.id}: {doc.name}\nSummary: {summary}")
+                available_documents = "\n\n".join(doc_list)
+            else:
+                available_documents = "No documents available"
+            
             # Ask agent to evaluate and update plan
             prompt = ADAPTIVE_PLAN_UPDATE_PROMPT.format(
                 original_query=original_query,
+                available_documents=available_documents,
                 current_plan_status=plan_status,
                 completed_task_name=latest_result.task.name,
                 task_findings=latest_result.analysis[:500],  # Limit length
@@ -143,21 +161,29 @@ class TaskPlanner:
             
         except Exception as e:
             logger.error(f"Failed to update plan: {e}")
-            # Return current plan unchanged on error
-            current_plan.current_iteration += 1
-            return current_plan
+            raise TaskPlanningError(f"Failed to update task plan: {e}")
     
-    def _parse_initial_plan(self, result: str, query: str) -> TaskPlan:
-        """Parse initial planning response and create TaskPlan"""
+    def _parse_initial_plan(self, result: str, query: str, documents: Optional[List[Document]] = None) -> TaskPlan:
+        """Parse initial planning response and create TaskPlan with document assignments"""
         try:
             plan_data = json.loads(result.strip())
             tasks = []
             
+            # Create map of available document IDs for validation
+            valid_doc_ids = set()
+            if documents:
+                valid_doc_ids = {doc.id for doc in documents}
+            
             for task_data in plan_data.get("tasks", []):
+                # Parse and validate single document assignment
+                assigned_doc = task_data.get("document", "")
+                valid_assigned_doc = assigned_doc if assigned_doc in valid_doc_ids else ""
+                
                 task = AgentTask(
                     id=str(uuid.uuid4()),
                     name=task_data.get("name", "Unnamed Task"),
                     description=task_data.get("description", ""),
+                    document=valid_assigned_doc,
                     status=TaskStatus.PENDING
                 )
                 tasks.append(task)
@@ -175,7 +201,7 @@ class TaskPlanner:
             
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"Failed to parse initial plan: {e}")
-            return self._create_fallback_plan(query)
+            raise TaskPlanningError(f"Failed to parse task plan JSON: {e}")
     
     def _apply_plan_updates(
         self, 
@@ -199,13 +225,15 @@ class TaskPlanner:
                 # Add new tasks
                 new_tasks_data = update_data.get("new_tasks", [])
                 for task_data in new_tasks_data:
+                    assigned_doc = task_data.get("document", "")
                     new_task = AgentTask(
                         name=task_data.get("name", "New Task"),
                         description=task_data.get("description", ""),
+                        document=assigned_doc,
                         status=TaskStatus.PENDING
                     )
                     current_plan.add_task(new_task)
-                    logger.info(f"Added new task: {new_task.name}")
+                    logger.info(f"Added new task: {new_task.name} - Document: {assigned_doc}")
                     
             elif action == "remove_tasks":
                 # Remove specified tasks
@@ -222,18 +250,18 @@ class TaskPlanner:
                     task = next((t for t in current_plan.tasks if t.id == task_id), None)
                     if task and task.status == TaskStatus.PENDING:
                         old_name = task.name
+                        old_doc = task.document
                         task.name = modification.get("new_name", task.name)
                         task.description = modification.get("new_description", task.description)
-                        logger.info(f"Modified task '{old_name}' -> '{task.name}'")
+                        task.document = modification.get("new_document", task.document)
+                        logger.info(f"Modified task '{old_name}' -> '{task.name}' (Document: {old_doc} -> {task.document})")
             
             current_plan.current_iteration += 1
             return current_plan
             
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"Failed to parse plan updates: {e}")
-            # Return plan unchanged on parse error
-            current_plan.current_iteration += 1
-            return current_plan
+            raise TaskPlanningError(f"Failed to parse plan update JSON: {e}")
     
     def _build_plan_status(self, plan: TaskPlan) -> str:
         """Build text summary of current plan status"""
@@ -255,18 +283,3 @@ class TaskPlanner:
         
         return "Completed tasks:\n" + "\n".join(summary_parts)
     
-    def _create_fallback_plan(self, query: str) -> TaskPlan:
-        """Create a simple fallback plan if initial planning fails"""
-        logger.warning("Creating fallback task plan")
-        
-        fallback_task = AgentTask(
-            name="Analyze Documents",
-            description=f"Find information to answer: {query}",
-            status=TaskStatus.PENDING
-        )
-        
-        return TaskPlan(
-            initial_query=query,
-            tasks=[fallback_task],
-            current_iteration=0
-        )
