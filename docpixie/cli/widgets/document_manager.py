@@ -220,18 +220,21 @@ class DocumentManagerDialog(ModalScreen):
             if len(doc.summary) > 150:
                 summary_preview += "..."
         
-        # Create container
-        container = Vertical(
+        # Build list of widgets for container
+        widgets = [
             Static(name_text),
             Static(meta_text, classes="document-meta")
-        )
+        ]
         
         # Add summary if available
         if summary_preview:
             summary_text = Text()
             summary_text.append("Summary: ", style="dim italic")
             summary_text.append(summary_preview, style="italic")
-            container.mount(Static(summary_text, classes="document-summary"))
+            widgets.append(Static(summary_text, classes="document-summary"))
+        
+        # Create container with all widgets
+        container = Vertical(*widgets)
         
         return container
     

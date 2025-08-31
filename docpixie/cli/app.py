@@ -332,15 +332,13 @@ class DocPixieTUI(App):
         else:
             await self.initialize_docpixie()
 
-    async def initialize_docpixie(self) -> None:
-        """Initialize DocPixie with configured settings"""
-        chat_log = self.query_one("#chat-log", RichLog)
-
+    async def create_docpixie_instance(self) -> bool:
+        """Create or recreate DocPixie instance with current configuration.
+        Returns True if successful, False otherwise."""
         try:
             api_key = self.config_manager.get_api_key()
             if not api_key:
-                chat_log.write("[error]❌ No API key configured. Please restart and configure.[/error]")
-                return
+                return False
 
             text_model, vision_model = self.config_manager.get_models()
 
@@ -358,18 +356,54 @@ class DocPixieTUI(App):
 
             # Initialize DocPixie
             self.docpixie = DocPixie(config=config)
+            
+            # Re-add existing indexed documents to the new instance
+            # This maintains document references without re-indexing
+            if hasattr(self, 'indexed_documents') and self.indexed_documents:
+                for doc in self.indexed_documents:
+                    # Documents are already in storage, just add to instance
+                    if hasattr(self.docpixie, 'documents'):
+                        self.docpixie.documents[doc.id] = doc
+            
+            return True
+        except Exception as e:
+            # Only log error if we can access the chat log
+            try:
+                chat_log = self.query_one("#chat-log", RichLog)
+                chat_log.write(f"[error]❌ Failed to create DocPixie instance: {e}[/error]")
+            except:
+                pass  # Silently fail if UI not ready
+            return False
 
+    async def initialize_docpixie(self, show_welcome: bool = True) -> None:
+        """Full initialization of DocPixie on app start"""
+        chat_log = self.query_one("#chat-log", RichLog)
+
+        # Create DocPixie instance
+        if not await self.create_docpixie_instance():
+            chat_log.write("[error]❌ No API key configured. Please restart and configure.[/error]")
+            return
+
+        try:
             # Check for documents and ask user
             await self.check_and_prompt_for_documents()
 
             # Load last conversation or create new one
             await self.load_or_create_conversation()
 
-            # Show welcome message
-            self.show_welcome_message()
+            # Show welcome message (only if requested)
+            if show_welcome:
+                self.show_welcome_message()
 
         except Exception as e:
             chat_log.write(f"[error]❌ Failed to initialize: {e}[/error]")
+
+    async def switch_models(self) -> None:
+        """Switch models without reloading documents or conversations"""
+        # Just recreate the DocPixie instance with new models
+        # Documents stay in self.indexed_documents
+        # Conversation history stays in self.conversation_history
+        await self.create_docpixie_instance()
 
     async def check_and_prompt_for_documents(self) -> None:
         """Check for documents and prompt user to index them"""
@@ -684,16 +718,22 @@ class DocPixieTUI(App):
     async def on_model_selected(self, event: ModelSelected) -> None:
         """Handle model selection"""
         chat_log = self.query_one("#chat-log", RichLog)
-        chat_log.write(f"[success]✅ Models updated:[/success]\n")
-        chat_log.write(f"  Planning: {event.text_model}\n")
-        chat_log.write(f"  Vision: {event.vision_model}\n\n")
+        
+        # Check what changed using the old values from the event
+        if event.old_text_model and event.text_model != event.old_text_model:
+            chat_log.write(f"[green]✅ Planning model switched to {event.text_model}[/green]\n\n")
+            # Just switch models - no document reloading
+            await self.switch_models()
+        elif event.old_vision_model and event.vision_model != event.old_vision_model:
+            chat_log.write(f"[green]✅ Vision model switched to {event.vision_model}[/green]\n\n")
+            # Just switch models - no document reloading
+            await self.switch_models()
+        else:
+            chat_log.write("[dim]No model changes made[/dim]\n\n")
         
         # Update status bar
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
-        
-        # Reinitialize DocPixie with new models
-        await self.initialize_docpixie()
 
     async def on_document_removed(self, event: DocumentRemoved) -> None:
         """Handle document removal"""
