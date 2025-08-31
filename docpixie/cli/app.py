@@ -32,123 +32,8 @@ from .widgets import (
     CommandPalette, CommandSelected, CommandAutoComplete,
     ConversationListDialog, ConversationSelected, ConversationDeleted,
     ModelSelectorDialog, ModelSelected,
-    DocumentManagerDialog, DocumentRemoved
+    DocumentManagerDialog, DocumentRemoved, DocumentsIndexed
 )
-
-
-class IndexConfirmDialog(ModalScreen):
-    """Modal dialog to confirm document indexing"""
-
-    CSS = """
-    IndexConfirmDialog {
-        align: center middle;
-    }
-
-    #dialog-container {
-        width: 60;
-        height: auto;
-        padding: 2;
-        background: $surface;
-        border: solid $primary;
-    }
-
-    #button-container {
-        align: center middle;
-        margin-top: 1;
-    }
-
-    #progress-container {
-        display: none;
-        margin-top: 1;
-    }
-
-    #progress-container.visible {
-        display: block;
-    }
-    """
-
-    def __init__(self, pdf_files: List[Path]):
-        super().__init__()
-        self.pdf_files = pdf_files
-        self.indexing = False
-
-    def compose(self) -> ComposeResult:
-        with Container(id="dialog-container"):
-            # Check if these are all new files or just some new files
-            title = "[bold]📚 New PDF files to index:[/bold]\n" if len(self.pdf_files) <= 5 else f"[bold]📚 Found {len(self.pdf_files)} new PDF file(s):[/bold]\n"
-            yield Static(title)
-
-            # List files
-            file_list = "\n".join(f"  • {pdf.name}" for pdf in self.pdf_files[:5])
-            if len(self.pdf_files) > 5:
-                file_list += f"\n  ... and {len(self.pdf_files) - 5} more"
-            yield Static(file_list + "\n")
-
-            yield Static("[yellow]Index these new documents now?[/yellow]\n")
-
-            with Container(id="progress-container"):
-                yield Static("[dim]Indexing documents...[/dim]", id="progress-text")
-                yield ProgressBar(total=len(self.pdf_files), id="index-progress")
-
-            with Horizontal(id="button-container"):
-                yield Button("Yes, Index Now", variant="primary", id="yes-btn")
-                yield Button("Skip for Now", variant="default", id="skip-btn")
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes-btn" and not self.indexing:
-            self.indexing = True
-            # Hide buttons, show progress
-            self.query_one("#button-container").display = False
-            self.query_one("#progress-container").add_class("visible")
-
-            # Start indexing in background
-            asyncio.create_task(self.start_indexing())
-
-        elif event.button.id == "skip-btn":
-            self.app.pop_screen()
-            chat_log = self.app.query_one("#chat-log", RichLog)
-            chat_log.write("[dim]Document indexing skipped. Use /index to index documents later.[/dim]\n")
-
-    async def start_indexing(self):
-        """Start the indexing process"""
-        progress_bar = self.query_one("#index-progress", ProgressBar)
-        progress_text = self.query_one("#progress-text", Static)
-
-        # Index documents
-        indexed_count = 0
-        for i, pdf_file in enumerate(self.pdf_files, 1):
-            try:
-                progress_text.update(f"Indexing ({i}/{len(self.pdf_files)}): {pdf_file.name}...")
-
-                # Run sync method in executor
-                document = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.app.docpixie.add_document_sync,
-                    str(pdf_file),
-                    None,
-                    pdf_file.stem
-                )
-
-                self.app.indexed_documents.append(document)
-                indexed_count += 1
-                progress_bar.advance(1)
-
-                # Yield control to allow UI updates
-                await asyncio.sleep(0.01)
-
-            except Exception as e:
-                self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
-
-        # Update app status and close dialog
-        self.app.pop_screen()
-
-        # Update status bar
-        status_label = self.app.query_one("#status-label", Label)
-        status_label.update(self.app.get_status_text())
-
-        # Show success message
-        chat_log = self.app.query_one("#chat-log", RichLog)
-        chat_log.write(f"\n✅ Successfully indexed {indexed_count} document(s)\n")
 
 
 class SetupScreen(Screen):
@@ -408,7 +293,7 @@ class DocPixieTUI(App):
         if not self.documents_folder.exists():
             self.documents_folder.mkdir(parents=True)
             chat_log.write(f"📁 Created documents folder: {self.documents_folder.absolute()}\n")
-            chat_log.write("💡 Add PDF files to the documents folder and use /index to index them.\n")
+            chat_log.write("💡 Add PDF files to the documents folder and use /documents to manage them.\n")
             return
 
         # Clear existing indexed documents to prevent duplicates when reinitializing
@@ -437,7 +322,7 @@ class DocPixieTUI(App):
         if not pdf_files:
             if not self.indexed_documents:
                 chat_log.write(f"📭 No PDF files found in {self.documents_folder.absolute()}\n")
-                chat_log.write("💡 Add PDF files to the documents folder and use /index to index them.\n")
+                chat_log.write("💡 Add PDF files to the documents folder and use /documents to manage them.\n")
             return
 
         # Check for new files that aren't indexed yet
@@ -449,12 +334,13 @@ class DocPixieTUI(App):
 
         # Only prompt if there are new files to index
         if new_pdf_files:
-            chat_log.write(f"📄 Found {len(new_pdf_files)} new PDF file(s) to index\n")
-            await self.push_screen(IndexConfirmDialog(new_pdf_files))
-        elif not self.indexed_documents:
-            # No indexed documents and no new files means all PDFs are somehow orphaned
-            # This shouldn't happen normally, but offer to index anyway
-            await self.push_screen(IndexConfirmDialog(pdf_files))
+            chat_log.write(f"📄 Found {len(new_pdf_files)} new PDF file(s)\n")
+            # Show document manager for user to select which ones to index
+            await self.push_screen(DocumentManagerDialog(
+                self.indexed_documents, 
+                self.documents_folder,
+                self.docpixie
+            ))
         else:
             # All documents already indexed
             chat_log.write(f"✅ All documents already indexed\n")
@@ -762,6 +648,27 @@ class DocPixieTUI(App):
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
 
+    async def on_documents_indexed(self, event: DocumentsIndexed) -> None:
+        """Handle documents being indexed"""
+        chat_log = self.query_one("#chat-log", RichLog)
+        
+        # Add documents to indexed list
+        indexed_count = 0
+        for doc in event.documents:
+            # Check if not already in list (avoid duplicates)
+            if not any(existing.id == doc.id for existing in self.indexed_documents):
+                self.indexed_documents.append(doc)
+                indexed_count += 1
+        
+        if indexed_count == 1:
+            chat_log.write(f"[success]✅ Successfully indexed 1 document[/success]\n\n")
+        else:
+            chat_log.write(f"[success]✅ Successfully indexed {indexed_count} documents[/success]\n\n")
+        
+        # Update status bar
+        status_label = self.query_one("#status-label", Label)
+        status_label.update(self.get_status_text())
+
     async def handle_command(self, command: str) -> None:
         """Handle slash commands"""
         chat_log = self.query_one("#chat-log", RichLog)
@@ -822,46 +729,17 @@ class DocPixieTUI(App):
             # Show conversation list dialog
             await self.push_screen(ConversationListDialog(self.current_conversation_id))
 
-        elif command == "/index":
-            # Re-scan and index documents
-            # Create documents folder if it doesn't exist
-            if not self.documents_folder.exists():
-                self.documents_folder.mkdir(parents=True)
-                chat_log.write(f"📁 Created documents folder: {self.documents_folder.absolute()}\n")
-                chat_log.write("💡 Add PDF files to the documents folder and use /index again.\n")
-                return
-
-            # Get already indexed document names
-            indexed_names = {doc.name for doc in self.indexed_documents}
-
-            # Find all PDF files
-            pdf_files = list(self.documents_folder.glob("*.pdf"))
-
-            if not pdf_files:
-                chat_log.write(f"📭 No PDF files found in {self.documents_folder.absolute()}\n")
-                chat_log.write("💡 Add PDF files to the documents folder first.\n")
-                return
-
-            # Check for new files that aren't indexed yet
-            new_pdf_files = []
-            for pdf in pdf_files:
-                if pdf.stem not in indexed_names:
-                    new_pdf_files.append(pdf)
-
-            if new_pdf_files:
-                chat_log.write(f"📄 Found {len(new_pdf_files)} new PDF file(s) to index\n")
-                await self.push_screen(IndexConfirmDialog(new_pdf_files))
-            else:
-                chat_log.write("✅ All documents are already indexed\n")
-                chat_log.write(f"📚 Currently indexed: {', '.join(indexed_names)}\n")
-
         elif command == "/model":
             # Show model selector dialog
             await self.push_screen(ModelSelectorDialog())
 
         elif command == "/documents":
-            # Show document manager dialog
-            await self.push_screen(DocumentManagerDialog(self.indexed_documents))
+            # Show document manager dialog with all necessary parameters
+            await self.push_screen(DocumentManagerDialog(
+                self.indexed_documents,
+                self.documents_folder,
+                self.docpixie
+            ))
 
         elif command == "/help":
             chat_log.write("\n[bold]Available Commands:[/bold]\n")
@@ -869,9 +747,8 @@ class DocPixieTUI(App):
             chat_log.write("  /conversations - Switch between conversations (Ctrl+L)\n")
             chat_log.write("  /save         - Save current conversation\n")
             chat_log.write("  /clear        - Clear the chat display\n")
-            chat_log.write("  /index        - Index documents from ./documents folder\n")
             chat_log.write("  /model        - Configure AI models (Ctrl+M)\n")
-            chat_log.write("  /documents    - Manage indexed documents (Ctrl+D)\n")
+            chat_log.write("  /documents    - Manage and index documents (Ctrl+D)\n")
             chat_log.write("  /help         - Show this help message\n")
             chat_log.write("  /exit         - Exit the program (Ctrl+Q)\n\n")
             chat_log.write("[dim]Press Ctrl+/ to open command palette[/dim]\n\n")

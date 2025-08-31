@@ -83,9 +83,8 @@ class CommandPalette(Container):
         CommandItem("/conversations", "Switch between conversations (Ctrl+L)"),
         CommandItem("/save", "Save current conversation"),
         CommandItem("/clear", "Clear current chat display"),
-        CommandItem("/index", "Index documents from ./documents folder"),
         CommandItem("/model", "Configure Planning and Vision models (Ctrl+M)"),
-        CommandItem("/documents", "Manage indexed documents (Ctrl+D)"),
+        CommandItem("/documents", "Manage and index documents (Ctrl+D)"),
         CommandItem("/help", "Show all available commands"),
         CommandItem("/exit", "Exit the program (Ctrl+Q)"),
     ]

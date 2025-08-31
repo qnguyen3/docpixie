@@ -1,11 +1,13 @@
 """
 Document manager dialog for DocPixie CLI
-Allows users to view and manage indexed documents
+Allows users to view and manage all documents (indexed and unindexed)
 """
 
-from typing import List, Optional, Set
+import asyncio
+from pathlib import Path
+from typing import List, Optional, Set, Dict
 from datetime import datetime
-from textual.widgets import Static, ListView, ListItem, Label
+from textual.widgets import Static, ListView, ListItem, Label, ProgressBar
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.message import Message
@@ -20,6 +22,14 @@ class DocumentRemoved(Message):
 
     def __init__(self, document_ids: List[str]):
         self.document_ids = document_ids
+        super().__init__()
+
+
+class DocumentsIndexed(Message):
+    """Message sent when documents are indexed"""
+
+    def __init__(self, documents: List[Document]):
+        self.documents = documents
         super().__init__()
 
 
@@ -102,7 +112,7 @@ class DeletionConfirmDialog(ModalScreen):
 
 
 class DocumentManagerDialog(ModalScreen):
-    """Modal dialog for managing indexed documents"""
+    """Modal dialog for managing all documents (indexed and unindexed)"""
 
     CSS = """
     DocumentManagerDialog {
@@ -112,7 +122,7 @@ class DocumentManagerDialog(ModalScreen):
     #dialog-container {
         width: 80;
         height: auto;
-        max-height: 30;
+        max-height: 35;
         min-height: 26;
         padding: 1;
         background: $surface;
@@ -126,7 +136,7 @@ class DocumentManagerDialog(ModalScreen):
     }
 
     #document-list {
-        height: 17;
+        height: 20;
         scrollbar-background: $panel;
         scrollbar-color: $primary;
         scrollbar-size: 1 1;
@@ -136,7 +146,7 @@ class DocumentManagerDialog(ModalScreen):
     }
 
     #no-documents {
-        height: 17;
+        height: 20;
         align: center middle;
         color: $text-muted;
         border: solid $accent;
@@ -165,6 +175,15 @@ class DocumentManagerDialog(ModalScreen):
         margin: 0;
     }
 
+    #progress-container {
+        display: none;
+        margin: 1 0;
+    }
+
+    #progress-container.visible {
+        display: block;
+    }
+
     #selection-info {
         height: 1;
         margin: 1 0;
@@ -178,51 +197,88 @@ class DocumentManagerDialog(ModalScreen):
     }
     """
 
-    def __init__(self, documents: List[Document]):
+    def __init__(self, indexed_documents: List[Document], documents_folder: Path, docpixie=None):
         super().__init__()
-        self.documents = documents
-        self.selected_documents: Set[str] = set()
+        self.indexed_documents = indexed_documents
+        self.documents_folder = documents_folder
+        self.docpixie = docpixie
+        self.selected_items: Set[str] = set()  # PDF names or doc IDs
         self.document_items: List[ListItem] = []
         self.focused_index = 0
+        self.indexing = False
+        
+        # Will be populated with all PDFs and their status
+        self.all_items: List[Dict] = []
 
     def compose(self):
         """Create the document manager dialog"""
         with Container(id="dialog-container"):
-            # Title
-            yield Static("[bold]📚 Document Manager[/bold]", classes="title")
+            # Title (will be updated with counts)
+            yield Static("[bold]📚 Document Manager[/bold]", classes="title", id="title")
 
             # Document list
             yield ListView(id="document-list")
 
             # Empty state message (initially hidden)
             yield Static(
-                "[dim]No documents indexed yet.\nUse /index to add documents from the documents folder.[/dim]",
+                "[dim]No PDF documents found in the documents folder.[/dim]",
                 id="no-documents"
             )
+
+            # Progress container for indexing
+            with Container(id="progress-container"):
+                yield Static("[dim]Indexing documents...[/dim]", id="progress-text")
+                yield ProgressBar(id="index-progress")
 
             # Selection info
             yield Static(id="selection-info", classes="info")
             
             # Control hints
             yield Static(
-                "[dim]↑↓[/dim] Navigate  [dim]Enter[/dim] Toggle Select  [dim]D[/dim] Delete Selected  [dim]Esc[/dim] Close",
+                "[dim]↑↓[/dim] Navigate  [dim]Enter[/dim] Toggle Select  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
                 id="controls-hint"
             )
 
     async def on_mount(self):
         """Load documents when dialog mounts"""
+        self._scan_and_load_documents()
+        self._update_title()
         self._update_selection_info()
-        self._load_documents()
-
+        
         # Set initial focus to the dialog itself
         self.focus()
 
-    def _load_documents(self):
-        """Load and display documents"""
+    def _scan_and_load_documents(self):
+        """Scan folder for PDFs and match with indexed documents"""
+        # Clear the all_items list
+        self.all_items = []
+        
+        # Create a map of indexed documents by name
+        indexed_map = {doc.name: doc for doc in self.indexed_documents}
+        
+        # Scan for all PDF files
+        if self.documents_folder.exists():
+            pdf_files = sorted(self.documents_folder.glob("*.pdf"))
+            
+            for pdf_file in pdf_files:
+                item = {
+                    'name': pdf_file.stem,
+                    'pdf_path': pdf_file,
+                    'is_indexed': pdf_file.stem in indexed_map,
+                    'document': indexed_map.get(pdf_file.stem),
+                    'file_size': pdf_file.stat().st_size if pdf_file.exists() else 0
+                }
+                self.all_items.append(item)
+        
+        # Load the display
+        self._load_document_list()
+
+    def _load_document_list(self):
+        """Load and display the document list"""
         list_view = self.query_one("#document-list", ListView)
         no_docs_msg = self.query_one("#no-documents", Static)
 
-        if not self.documents:
+        if not self.all_items:
             # Show empty state
             list_view.display = False
             no_docs_msg.display = True
@@ -237,13 +293,14 @@ class DocumentManagerDialog(ModalScreen):
         self.document_items = []
 
         # Add document items
-        for i, doc in enumerate(self.documents):
+        for i, item in enumerate(self.all_items):
             # Create document item content
-            item_content = self._create_document_content(doc)
+            item_content = self._create_item_content(item)
 
             # Create list item
             list_item = ListItem(item_content, classes="document-item")
-            list_item.data = doc.id  # Store document ID for reference
+            # Store identifier for reference (use name as unique ID)
+            list_item.data = item['name']
 
             list_view.append(list_item)
             self.document_items.append(list_item)
@@ -252,37 +309,40 @@ class DocumentManagerDialog(ModalScreen):
         if self.document_items:
             self.focused_index = 0
             self._highlight_focused()
+            
+    def _update_title(self):
+        """Update the title with document counts"""
+        title = self.query_one("#title", Static)
+        total = len(self.all_items)
+        indexed = sum(1 for item in self.all_items if item['is_indexed'])
+        
+        title.update(f"[bold]📚 Document Manager - Total: {total} docs ({indexed} indexed)[/bold]")
 
-    def _create_document_content(self, doc: Document) -> Static:
-        """Create content for a document item"""
-        # Create compact single-line display
+    def _create_item_content(self, item: Dict) -> Static:
+        """Create content for a document item (indexed or unindexed)"""
         display_text = Text()
 
         # Selection checkbox
-        if doc.id in self.selected_documents:
+        if item['name'] in self.selected_items:
             display_text.append("[✓] ", style="green bold")
         else:
             display_text.append("[ ] ", style="dim")
 
         # Document name
-        display_text.append(f"{doc.name}", style="bold")
-
-        # Metadata on same line
-        display_text.append(f"  ", style="dim")
-        display_text.append(f"({doc.page_count} pages", style="dim")
-
-        if hasattr(doc, 'file_size'):
-            # Convert bytes to human readable
-            size = doc.file_size if hasattr(doc, 'file_size') else 0
-            if size > 1024 * 1024:
-                size_str = f"{size / (1024 * 1024):.1f}MB"
-            elif size > 1024:
-                size_str = f"{size / 1024:.1f}KB"
-            else:
-                size_str = f"{size}B"
-            display_text.append(f", {size_str}", style="dim")
-
-        display_text.append(")", style="dim")
+        display_text.append(f"{item['name']}.pdf", style="bold")
+        
+        # Add spacing
+        display_text.append("  ", style="dim")
+        
+        # Show status and metadata
+        if item['is_indexed']:
+            # For indexed documents, show page count and indexed status
+            doc = item['document']
+            display_text.append(f"({doc.page_count} pages) ", style="dim")
+            display_text.append("✅ Indexed", style="green")
+        else:
+            # For unindexed documents, just show not indexed status
+            display_text.append("(Not indexed)", style="yellow")
 
         return Static(display_text)
 
@@ -302,13 +362,14 @@ class DocumentManagerDialog(ModalScreen):
 
     def _toggle_selection(self, index: int):
         """Toggle selection for a document"""
-        if 0 <= index < len(self.documents):
-            doc = self.documents[index]
+        if 0 <= index < len(self.all_items):
+            item = self.all_items[index]
+            name = item['name']
 
-            if doc.id in self.selected_documents:
-                self.selected_documents.remove(doc.id)
+            if name in self.selected_items:
+                self.selected_items.remove(name)
             else:
-                self.selected_documents.add(doc.id)
+                self.selected_items.add(name)
 
             # Update display
             self._refresh_document_item(index)
@@ -317,11 +378,11 @@ class DocumentManagerDialog(ModalScreen):
     def _refresh_document_item(self, index: int):
         """Refresh a single document item display"""
         if 0 <= index < len(self.document_items):
-            doc = self.documents[index]
+            item = self.all_items[index]
             list_item = self.document_items[index]
 
             # Recreate content
-            new_content = self._create_document_content(doc)
+            new_content = self._create_item_content(item)
 
             # Replace content in the list item
             list_item.remove_children()
@@ -330,38 +391,139 @@ class DocumentManagerDialog(ModalScreen):
     def _update_selection_info(self):
         """Update the selection info display"""
         info = self.query_one("#selection-info", Static)
-        count = len(self.selected_documents)
+        count = len(self.selected_items)
 
         if count == 0:
             info.update("[dim]No documents selected[/dim]")
-        elif count == 1:
-            info.update(f"[yellow]1 document selected[/yellow]")
         else:
-            info.update(f"[yellow]{count} documents selected[/yellow]")
+            # Count how many selected are indexed vs unindexed
+            indexed_count = 0
+            unindexed_count = 0
+            for name in self.selected_items:
+                # Find the item
+                for item in self.all_items:
+                    if item['name'] == name:
+                        if item['is_indexed']:
+                            indexed_count += 1
+                        else:
+                            unindexed_count += 1
+                        break
+            
+            if count == 1:
+                info.update(f"[yellow]1 document selected[/yellow]")
+            else:
+                info.update(f"[yellow]{count} documents selected[/yellow]")
 
 
     async def _remove_selected(self):
-        """Remove selected documents with confirmation"""
-        if self.selected_documents:
-            # Show confirmation dialog without waiting
-            confirm_dialog = DeletionConfirmDialog(len(self.selected_documents))
-
-            # Store the selected document IDs in the confirm dialog
-            confirm_dialog.document_ids = list(self.selected_documents)
+        """Remove selected indexed documents with confirmation"""
+        # Get only indexed documents that are selected
+        indexed_to_remove = []
+        for name in self.selected_items:
+            for item in self.all_items:
+                if item['name'] == name and item['is_indexed']:
+                    indexed_to_remove.append(item['document'].id)
+                    break
+        
+        if indexed_to_remove:
+            # Show confirmation dialog
+            confirm_dialog = DeletionConfirmDialog(len(indexed_to_remove))
+            confirm_dialog.document_ids = indexed_to_remove
             confirm_dialog.parent_dialog = self
-
-            # Push the screen without waiting
             self.app.push_screen(confirm_dialog)
+
+    async def _index_selected(self):
+        """Index selected unindexed documents"""
+        if self.indexing:
+            return
+            
+        # Get only unindexed documents that are selected
+        to_index = []
+        for name in self.selected_items:
+            for item in self.all_items:
+                if item['name'] == name and not item['is_indexed']:
+                    to_index.append(item['pdf_path'])
+                    break
+        
+        if to_index:
+            self.indexing = True
+            # Show progress container
+            progress_container = self.query_one("#progress-container", Container)
+            progress_container.add_class("visible")
+            
+            # Start indexing
+            asyncio.create_task(self._perform_indexing(to_index))
+    
+    async def _perform_indexing(self, pdf_files: List[Path]):
+        """Perform the actual indexing of documents"""
+        progress_bar = self.query_one("#index-progress", ProgressBar)
+        progress_text = self.query_one("#progress-text", Static)
+        
+        # Set up progress bar
+        progress_bar.total = len(pdf_files)
+        progress_bar.progress = 0
+        
+        indexed_docs = []
+        for i, pdf_file in enumerate(pdf_files, 1):
+            try:
+                progress_text.update(f"Indexing ({i}/{len(pdf_files)}): {pdf_file.name}...")
+                
+                # Run sync method in executor
+                if self.docpixie:
+                    document = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        self.docpixie.add_document_sync,
+                        str(pdf_file),
+                        None,
+                        pdf_file.stem
+                    )
+                    indexed_docs.append(document)
+                    progress_bar.advance(1)
+                    
+                    # Yield control to allow UI updates
+                    await asyncio.sleep(0.01)
+                    
+            except Exception as e:
+                self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
+        
+        # Hide progress container
+        progress_container = self.query_one("#progress-container", Container)
+        progress_container.remove_class("visible")
+        
+        self.indexing = False
+        
+        # Send message about indexed documents
+        if indexed_docs:
+            self.post_message(DocumentsIndexed(indexed_docs))
+            
+            # Update our local data
+            for doc in indexed_docs:
+                # Find the item and mark it as indexed
+                for item in self.all_items:
+                    if item['name'] == doc.name:
+                        item['is_indexed'] = True
+                        item['document'] = doc
+                        break
+            
+            # Clear selections for indexed items
+            for doc in indexed_docs:
+                if doc.name in self.selected_items:
+                    self.selected_items.remove(doc.name)
+            
+            # Refresh the display
+            self._load_document_list()
+            self._update_title()
+            self._update_selection_info()
 
     def _move_focus_up(self):
         """Move focus up"""
-        if self.documents and self.focused_index > 0:
+        if self.all_items and self.focused_index > 0:
             self.focused_index -= 1
             self._highlight_focused()
 
     def _move_focus_down(self):
         """Move focus down"""
-        if self.documents and self.focused_index < len(self.documents) - 1:
+        if self.all_items and self.focused_index < len(self.all_items) - 1:
             self.focused_index += 1
             self._highlight_focused()
 
@@ -380,10 +542,12 @@ class DocumentManagerDialog(ModalScreen):
         elif event.key == "enter" or event.key == "space":
             # Toggle selection for focused item
             self._toggle_selection(self.focused_index)
+        elif event.key.lower() == "i":
+            # Index selected unindexed documents
+            await self._index_selected()
         elif event.key.lower() == "d":
-            # Delete selected documents with confirmation
-            if self.selected_documents:
-                await self._remove_selected()
+            # Delete selected indexed documents with confirmation
+            await self._remove_selected()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle list item click"""
