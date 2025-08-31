@@ -171,10 +171,10 @@ class DeletionConfirmDialog(ModalScreen):
         """Handle key events"""
         if event.key.lower() == "y":
             self.confirmed = True
-            # Send removal message if we have document IDs
             if self.document_ids and self.parent_dialog:
-                self.parent_dialog.post_message(DocumentRemoved(self.document_ids))
-            # Only dismiss the confirmation dialog, not the parent
+                self.app.post_message(DocumentRemoved(self.document_ids))
+                # Update dialog directly without message
+                asyncio.create_task(self.parent_dialog._update_after_removal(self.document_ids))
             self.dismiss()
         elif event.key.lower() == "n" or event.key == "escape":
             self.confirmed = False
@@ -276,7 +276,7 @@ class DocumentManagerDialog(ModalScreen):
 
     def __init__(self, indexed_documents: List[Document], documents_folder: Path, docpixie=None):
         super().__init__()
-        self.indexed_documents = indexed_documents
+        self.indexed_documents = indexed_documents.copy()  # Make a copy to avoid shared reference issues
         self.documents_folder = documents_folder
         self.docpixie = docpixie
         self.selected_items: Set[str] = set()  # PDF names or doc IDs
@@ -735,36 +735,31 @@ class DocumentManagerDialog(ModalScreen):
             # Delete selected indexed documents with confirmation
             await self._remove_selected()
 
-    async def on_document_removed(self, event: DocumentRemoved) -> None:
-        """Handle document removal message"""
-        # Remove documents from our local lists
-        for doc_id in event.document_ids:
-            # Find and remove from indexed_documents
+    async def _update_after_removal(self, document_ids: List[str]) -> None:
+        """Update UI after documents are removed"""
+        await asyncio.sleep(0.1)  # Wait for app to process
+        
+        for doc_id in document_ids:
             for doc in self.indexed_documents[:]:
                 if doc.id == doc_id:
+                    doc_name = doc.name
                     self.indexed_documents.remove(doc)
                     
-                    # Also update all_items to mark as unindexed
                     for item in self.all_items:
-                        if item['name'] == doc.name:
+                        if item['name'] == doc_name:
                             item['is_indexed'] = False
                             item['document'] = None
                             break
+                    
+                    if doc_name in self.selected_items:
+                        self.selected_items.remove(doc_name)
+                    
+                    # Refresh just this item like we do for indexing
+                    self._refresh_specific_item(doc_name)
                     break
         
-        # Clear selections for removed documents
-        for doc_id in event.document_ids:
-            for doc in self.indexed_documents:
-                if doc.id == doc_id and doc.name in self.selected_items:
-                    self.selected_items.remove(doc.name)
-        
-        # Refresh the display
-        self._load_document_list()
         self._update_title()
         self._update_selection_info()
-        
-        # Continue propagating the message to the app
-        event.stop = False
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle list item click"""
