@@ -7,7 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import List, Optional, Set, Dict
 from datetime import datetime
-from textual.widgets import Static, ListView, ListItem, Label, ProgressBar
+from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.message import Message
@@ -178,10 +178,17 @@ class DocumentManagerDialog(ModalScreen):
     #progress-container {
         display: none;
         margin: 1 0;
+        padding: 0;
     }
 
     #progress-container.visible {
         display: block;
+    }
+    
+    #progress-display {
+        height: 2;
+        color: $text;
+        padding: 0 1;
     }
 
     #selection-info {
@@ -227,8 +234,7 @@ class DocumentManagerDialog(ModalScreen):
 
             # Progress container for indexing
             with Container(id="progress-container"):
-                yield Static("[dim]Indexing documents...[/dim]", id="progress-text")
-                yield ProgressBar(id="index-progress")
+                yield Static("", id="progress-display")
 
             # Selection info
             yield Static(id="selection-info", classes="info")
@@ -321,28 +327,37 @@ class DocumentManagerDialog(ModalScreen):
     def _create_item_content(self, item: Dict) -> Static:
         """Create content for a document item (indexed or unindexed)"""
         display_text = Text()
-
-        # Selection checkbox
+        
+        # Column 1: Selection checkbox (4 chars)
         if item['name'] in self.selected_items:
             display_text.append("[✓] ", style="green bold")
         else:
             display_text.append("[ ] ", style="dim")
-
-        # Document name
-        display_text.append(f"{item['name']}.pdf", style="bold")
         
-        # Add spacing
-        display_text.append("  ", style="dim")
+        # Column 2: Document name (45 chars fixed width)
+        name_with_ext = f"{item['name']}.pdf"
+        max_name_length = 45
         
-        # Show status and metadata
-        if item['is_indexed']:
-            # For indexed documents, show page count and indexed status
-            doc = item['document']
-            display_text.append(f"({doc.page_count} pages) ", style="dim")
-            display_text.append("✅ Indexed", style="green")
+        if len(name_with_ext) > max_name_length:
+            # Truncate with ellipsis
+            truncated_name = name_with_ext[:max_name_length-3] + "..."
         else:
-            # For unindexed documents, just show not indexed status
-            display_text.append("(Not indexed)", style="yellow")
+            # Pad with spaces to maintain alignment
+            truncated_name = name_with_ext.ljust(max_name_length)
+        
+        display_text.append(truncated_name, style="bold")
+        
+        # Column 3: Status (right side)
+        display_text.append("  ", style="dim")  # Spacing
+        
+        if item['is_indexed']:
+            # For indexed documents
+            doc = item['document']
+            display_text.append("✅ Indexed", style="green")
+            display_text.append(f" ({doc.page_count} pages)", style="dim")
+        else:
+            # For unindexed documents
+            display_text.append("⚪ Not indexed", style="yellow")
 
         return Static(display_text)
 
@@ -387,6 +402,13 @@ class DocumentManagerDialog(ModalScreen):
             # Replace content in the list item
             list_item.remove_children()
             list_item.mount(new_content)
+    
+    def _refresh_specific_item(self, name: str):
+        """Refresh a specific document item by name"""
+        for index, item in enumerate(self.all_items):
+            if item['name'] == name:
+                self._refresh_document_item(index)
+                break
 
     def _update_selection_info(self):
         """Update the selection info display"""
@@ -456,17 +478,43 @@ class DocumentManagerDialog(ModalScreen):
     
     async def _perform_indexing(self, pdf_files: List[Path]):
         """Perform the actual indexing of documents"""
-        progress_bar = self.query_one("#index-progress", ProgressBar)
-        progress_text = self.query_one("#progress-text", Static)
+        progress_display = self.query_one("#progress-display", Static)
         
-        # Set up progress bar
-        progress_bar.total = len(pdf_files)
-        progress_bar.progress = 0
+        # Spinner animation frames
+        spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spinner_index = 0
         
         indexed_docs = []
+        total = len(pdf_files)
+        
         for i, pdf_file in enumerate(pdf_files, 1):
             try:
-                progress_text.update(f"Indexing ({i}/{len(pdf_files)}): {pdf_file.name}...")
+                # Update spinner
+                spinner = spinner_frames[spinner_index % len(spinner_frames)]
+                spinner_index += 1
+                
+                # Calculate progress based on completed files
+                completed = i - 1
+                progress = int(completed / total * 100)
+                filled = int(progress / 100 * 30)  # 30 chars wide progress bar
+                empty = 30 - filled
+                
+                # Create purple progress bar using Rich markup
+                bar_filled = '█' * filled
+                bar_empty = '░' * empty
+                
+                # Create display text with truncated filename
+                filename = pdf_file.name
+                if len(filename) > 25:
+                    filename = filename[:22] + "..."
+                
+                # Use Rich markup directly in Static update
+                display_text = (
+                    f"[bold magenta]{spinner}[/bold magenta] Indexing: {filename} ({i}/{total})\n"
+                    f"[bold magenta]{bar_filled}[/bold magenta][dim]{bar_empty}[/dim] {progress}%"
+                )
+                
+                progress_display.update(display_text)
                 
                 # Run sync method in executor
                 if self.docpixie:
@@ -478,13 +526,32 @@ class DocumentManagerDialog(ModalScreen):
                         pdf_file.stem
                     )
                     indexed_docs.append(document)
-                    progress_bar.advance(1)
+                    
+                    # Update the item in our list immediately after indexing
+                    for item in self.all_items:
+                        if item['name'] == document.name:
+                            item['is_indexed'] = True
+                            item['document'] = document
+                            break
+                    
+                    # Refresh the display to show the newly indexed document
+                    self._refresh_specific_item(document.name)
+                    self._update_title()
                     
                     # Yield control to allow UI updates
                     await asyncio.sleep(0.01)
                     
             except Exception as e:
                 self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
+        
+        # Show 100% completion before hiding
+        if indexed_docs:
+            display_text = (
+                f"[bold green]✅[/bold green] Completed: Indexed {len(indexed_docs)} document(s)\n"
+                f"[bold magenta]{'█' * 30}[/bold magenta] 100%"
+            )
+            progress_display.update(display_text)
+            await asyncio.sleep(0.5)  # Brief pause to show completion
         
         # Hide progress container
         progress_container = self.query_one("#progress-container", Container)
