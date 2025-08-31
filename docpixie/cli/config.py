@@ -10,6 +10,30 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass, asdict, field
 
 
+# Available OpenRouter models
+PLANNING_MODELS = [
+    "openai/gpt-5-mini",
+    "openai/gpt-5",
+    "openai/gpt-4.1",
+    "openai/gpt-4.1-mini",
+    "google/gemini-2.5-pro",
+    "nousresearch/hermes-4-70b",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-3.5-haiku",
+    "qwen/qwen-plus",
+    "qwen/qwen-max",
+]
+
+VISION_MODELS = [
+    "google/gemini-2.5-flash",
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4.1",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-3.5-haiku",
+]
+
+
 @dataclass
 class CLIConfig:
     """CLI configuration stored globally in ~/.docpixie/"""
@@ -18,8 +42,8 @@ class CLIConfig:
     openrouter_api_key: Optional[str] = None
 
     # Model Configuration
-    text_model: str = "openai/gpt-5-mini"  # Planning model
-    vision_model: str = "openai/gpt-4.1"  # Vision model
+    text_model: str = "openai/gpt-5-mini"  # Planning model (default)
+    vision_model: str = "openai/gpt-4.1"  # Vision model (default)
 
     # User Preferences
     last_conversation_id: Optional[str] = None

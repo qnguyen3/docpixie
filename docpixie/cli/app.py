@@ -30,7 +30,9 @@ from .config import get_config_manager
 from .conversation_storage import ConversationStorage
 from .widgets import (
     CommandPalette, CommandSelected, CommandAutoComplete,
-    ConversationListDialog, ConversationSelected, ConversationDeleted
+    ConversationListDialog, ConversationSelected, ConversationDeleted,
+    ModelSelectorDialog, ModelSelected,
+    DocumentManagerDialog, DocumentRemoved
 )
 
 
@@ -255,7 +257,10 @@ class DocPixieTUI(App):
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+n", "new_conversation", "New Conversation"),
-        ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
+        ("ctrl+l", "show_conversations", "Conversations"),
+        ("ctrl+m", "show_models", "Model Config"),
+        ("ctrl+d", "show_documents", "Documents"),
+        ("ctrl+slash", "toggle_palette", "Commands"),
     ]
 
     def __init__(self):
@@ -376,6 +381,9 @@ class DocPixieTUI(App):
             chat_log.write(f"📁 Created documents folder: {self.documents_folder.absolute()}\n")
             chat_log.write("💡 Add PDF files to the documents folder and use /index to index them.\n")
             return
+
+        # Clear existing indexed documents to prevent duplicates when reinitializing
+        self.indexed_documents.clear()
 
         # Load already indexed documents from LocalStorage
         try:
@@ -673,6 +681,49 @@ class DocPixieTUI(App):
         chat_log = self.query_one("#chat-log", RichLog)
         chat_log.write("[success]✅ Conversation deleted[/success]\n\n")
 
+    async def on_model_selected(self, event: ModelSelected) -> None:
+        """Handle model selection"""
+        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log.write(f"[success]✅ Models updated:[/success]\n")
+        chat_log.write(f"  Planning: {event.text_model}\n")
+        chat_log.write(f"  Vision: {event.vision_model}\n\n")
+        
+        # Update status bar
+        status_label = self.query_one("#status-label", Label)
+        status_label.update(self.get_status_text())
+        
+        # Reinitialize DocPixie with new models
+        await self.initialize_docpixie()
+
+    async def on_document_removed(self, event: DocumentRemoved) -> None:
+        """Handle document removal"""
+        chat_log = self.query_one("#chat-log", RichLog)
+        
+        # Remove documents from indexed list
+        removed_count = 0
+        for doc_id in event.document_ids:
+            # Find and remove document
+            for doc in self.indexed_documents[:]:
+                if doc.id == doc_id:
+                    self.indexed_documents.remove(doc)
+                    removed_count += 1
+                    
+                    # Also remove from storage
+                    if self.docpixie and self.docpixie.storage:
+                        try:
+                            self.docpixie.storage.remove_document(doc_id)
+                        except:
+                            pass  # Storage might not have remove method
+        
+        if removed_count == 1:
+            chat_log.write(f"[success]✅ Removed 1 document from index[/success]\n\n")
+        else:
+            chat_log.write(f"[success]✅ Removed {removed_count} documents from index[/success]\n\n")
+        
+        # Update status bar
+        status_label = self.query_one("#status-label", Label)
+        status_label.update(self.get_status_text())
+
     async def handle_command(self, command: str) -> None:
         """Handle slash commands"""
         chat_log = self.query_one("#chat-log", RichLog)
@@ -766,14 +817,26 @@ class DocPixieTUI(App):
                 chat_log.write("✅ All documents are already indexed\n")
                 chat_log.write(f"📚 Currently indexed: {', '.join(indexed_names)}\n")
 
+        elif command == "/model":
+            # Show model selector dialog
+            await self.push_screen(ModelSelectorDialog())
+
+        elif command == "/documents":
+            # Show document manager dialog
+            await self.push_screen(DocumentManagerDialog(self.indexed_documents))
+
         elif command == "/help":
             chat_log.write("\n[bold]Available Commands:[/bold]\n")
-            chat_log.write("  /new   - Start a new conversation\n")
-            chat_log.write("  /clear - Clear the chat display\n")
-            chat_log.write("  /index - Index documents in the documents folder\n")
-            chat_log.write("  /exit  - Exit the program\n")
-            chat_log.write("  /help  - Show this help message\n\n")
-            chat_log.write("[dim]More commands coming in Phase 2![/dim]\n\n")
+            chat_log.write("  /new          - Start a new conversation (Ctrl+N)\n")
+            chat_log.write("  /conversations - Switch between conversations (Ctrl+L)\n")
+            chat_log.write("  /save         - Save current conversation\n")
+            chat_log.write("  /clear        - Clear the chat display\n")
+            chat_log.write("  /index        - Index documents from ./documents folder\n")
+            chat_log.write("  /model        - Configure AI models (Ctrl+M)\n")
+            chat_log.write("  /documents    - Manage indexed documents (Ctrl+D)\n")
+            chat_log.write("  /help         - Show this help message\n")
+            chat_log.write("  /exit         - Exit the program (Ctrl+Q)\n\n")
+            chat_log.write("[dim]Press Ctrl+/ to open command palette[/dim]\n\n")
 
         else:
             chat_log.write(f"[warning]Unknown command: {command}[/warning]\n")
@@ -889,9 +952,31 @@ class DocPixieTUI(App):
         """Start a new conversation"""
         asyncio.create_task(self.handle_command("/new"))
 
-    def action_toggle_dark(self) -> None:
-        """Toggle dark mode"""
-        self.dark = not self.dark
+    def action_show_conversations(self) -> None:
+        """Show conversation list"""
+        asyncio.create_task(self.handle_command("/conversations"))
+
+    def action_show_models(self) -> None:
+        """Show model selector"""
+        asyncio.create_task(self.handle_command("/model"))
+
+    def action_show_documents(self) -> None:
+        """Show document manager"""
+        asyncio.create_task(self.handle_command("/documents"))
+
+    def action_toggle_palette(self) -> None:
+        """Toggle command palette"""
+        command_palette = self.query_one("#command-palette", CommandPalette)
+        input_widget = self.query_one("#chat-input", Input)
+        
+        if self.command_palette_active:
+            command_palette.hide()
+            self.command_palette_active = False
+        else:
+            command_palette.show("/")
+            self.command_palette_active = True
+            input_widget.value = "/"
+            input_widget.cursor_position = 1
 
 
 def main():

@@ -79,17 +79,15 @@ class CommandPalette(Container):
     
     # Define all available commands
     COMMANDS = [
-        CommandItem("/new", "Start a new conversation"),
-        CommandItem("/conversations", "Switch between conversations"),
-        CommandItem("/save", "Save current conversation with custom name"),
+        CommandItem("/new", "Start a new conversation (Ctrl+N)"),
+        CommandItem("/conversations", "Switch between conversations (Ctrl+L)"),
+        CommandItem("/save", "Save current conversation"),
         CommandItem("/clear", "Clear current chat display"),
         CommandItem("/index", "Index documents from ./documents folder"),
+        CommandItem("/model", "Configure Planning and Vision models (Ctrl+M)"),
+        CommandItem("/documents", "Manage indexed documents (Ctrl+D)"),
         CommandItem("/help", "Show all available commands"),
-        CommandItem("/exit", "Exit the program"),
-        # Placeholder commands for Phase 3
-        CommandItem("/model", "Change AI models (Coming in Phase 3)"),
-        CommandItem("/documents", "Manage indexed documents (Coming in Phase 3)"),
-        CommandItem("/config", "Settings and configuration (Coming in Phase 3)"),
+        CommandItem("/exit", "Exit the program (Ctrl+Q)"),
     ]
     
     def __init__(self, **kwargs):
