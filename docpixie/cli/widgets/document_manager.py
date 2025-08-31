@@ -476,73 +476,106 @@ class DocumentManagerDialog(ModalScreen):
             # Start indexing
             asyncio.create_task(self._perform_indexing(to_index))
     
-    async def _perform_indexing(self, pdf_files: List[Path]):
-        """Perform the actual indexing of documents"""
+    async def _update_spinner_animation(self, stop_event: asyncio.Event):
+        """Background task to update spinner animation smoothly"""
         progress_display = self.query_one("#progress-display", Static)
-        
-        # Spinner animation frames
         spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         spinner_index = 0
         
-        indexed_docs = []
-        total = len(pdf_files)
-        
-        for i, pdf_file in enumerate(pdf_files, 1):
-            try:
+        while not stop_event.is_set():
+            # Get current indexing state
+            if hasattr(self, '_current_indexing_state'):
+                state = self._current_indexing_state
+                
                 # Update spinner
                 spinner = spinner_frames[spinner_index % len(spinner_frames)]
                 spinner_index += 1
                 
-                # Calculate progress based on completed files
-                completed = i - 1
-                progress = int(completed / total * 100)
-                filled = int(progress / 100 * 30)  # 30 chars wide progress bar
-                empty = 30 - filled
-                
-                # Create purple progress bar using Rich markup
-                bar_filled = '█' * filled
-                bar_empty = '░' * empty
-                
-                # Create display text with truncated filename
-                filename = pdf_file.name
-                if len(filename) > 25:
-                    filename = filename[:22] + "..."
-                
-                # Use Rich markup directly in Static update
+                # Create display with current state
                 display_text = (
-                    f"[bold magenta]{spinner}[/bold magenta] Indexing: {filename} ({i}/{total})\n"
-                    f"[bold magenta]{bar_filled}[/bold magenta][dim]{bar_empty}[/dim] {progress}%"
+                    f"[bold magenta]{spinner}[/bold magenta] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
+                    f"[bold magenta]{state['bar_filled']}[/bold magenta][dim]{state['bar_empty']}[/dim] {state['progress']}%"
                 )
                 
                 progress_display.update(display_text)
-                
-                # Run sync method in executor
-                if self.docpixie:
-                    document = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        self.docpixie.add_document_sync,
-                        str(pdf_file),
-                        None,
-                        pdf_file.stem
-                    )
-                    indexed_docs.append(document)
+            
+            # Wait before next update
+            await asyncio.sleep(0.1)
+    
+    async def _perform_indexing(self, pdf_files: List[Path]):
+        """Perform the actual indexing of documents"""
+        progress_display = self.query_one("#progress-display", Static)
+        
+        indexed_docs = []
+        total = len(pdf_files)
+        
+        # Initialize indexing state
+        self._current_indexing_state = {
+            'filename': 'Preparing...',
+            'current': 0,
+            'total': total,
+            'progress': 0,
+            'bar_filled': '',
+            'bar_empty': '░' * 30
+        }
+        
+        # Start spinner animation task
+        stop_spinner = asyncio.Event()
+        spinner_task = asyncio.create_task(self._update_spinner_animation(stop_spinner))
+        
+        try:
+            for i, pdf_file in enumerate(pdf_files, 1):
+                try:
+                    # Update state for current file
+                    completed = i - 1
+                    progress = int(completed / total * 100)
+                    filled = int(progress / 100 * 30)
+                    empty = 30 - filled
                     
-                    # Update the item in our list immediately after indexing
-                    for item in self.all_items:
-                        if item['name'] == document.name:
-                            item['is_indexed'] = True
-                            item['document'] = document
-                            break
+                    # Truncate filename
+                    filename = pdf_file.name
+                    if len(filename) > 25:
+                        filename = filename[:22] + "..."
                     
-                    # Refresh the display to show the newly indexed document
-                    self._refresh_specific_item(document.name)
-                    self._update_title()
+                    # Update shared state
+                    self._current_indexing_state = {
+                        'filename': filename,
+                        'current': i,
+                        'total': total,
+                        'progress': progress,
+                        'bar_filled': '█' * filled,
+                        'bar_empty': '░' * empty
+                    }
                     
-                    # Yield control to allow UI updates
-                    await asyncio.sleep(0.01)
-                    
-            except Exception as e:
-                self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
+                    # Run sync method in executor
+                    if self.docpixie:
+                        document = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            self.docpixie.add_document_sync,
+                            str(pdf_file),
+                            None,
+                            pdf_file.stem
+                        )
+                        indexed_docs.append(document)
+                        
+                        # Update the item in our list immediately after indexing
+                        for item in self.all_items:
+                            if item['name'] == document.name:
+                                item['is_indexed'] = True
+                                item['document'] = document
+                                break
+                        
+                        # Refresh the display to show the newly indexed document
+                        self._refresh_specific_item(document.name)
+                        self._update_title()
+                        
+                except Exception as e:
+                    self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
+        
+        finally:
+            # Stop spinner animation
+            stop_spinner.set()
+            await spinner_task
         
         # Show 100% completion before hiding
         if indexed_docs:
