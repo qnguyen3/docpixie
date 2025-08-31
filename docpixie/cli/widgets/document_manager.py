@@ -684,6 +684,10 @@ class DocumentManagerDialog(ModalScreen):
             
             # Update our local data
             for doc in indexed_docs:
+                # Add to indexed_documents list
+                if not any(d.id == doc.id for d in self.indexed_documents):
+                    self.indexed_documents.append(doc)
+                
                 # Find the item and mark it as indexed
                 for item in self.all_items:
                     if item['name'] == doc.name:
