@@ -1,0 +1,299 @@
+"""
+Local conversation storage for DocPixie CLI
+Stores conversations per project directory
+"""
+
+import json
+import uuid
+import os
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from dataclasses import dataclass, asdict
+
+from docpixie.models.agent import ConversationMessage
+
+
+@dataclass
+class ConversationMetadata:
+    """Metadata for a conversation"""
+    id: str
+    name: str
+    working_directory: str
+    created_at: str
+    updated_at: str
+    message_count: int
+    indexed_documents: List[str]  # List of document IDs that were indexed when conversation created
+
+
+class ConversationStorage:
+    """Manages local conversation storage in ./.docpixie/conversations/"""
+    
+    def __init__(self):
+        """Initialize conversation storage for current directory"""
+        self.base_path = Path("./.docpixie")
+        self.conversations_dir = self.base_path / "conversations"
+        self.metadata_file = self.conversations_dir / "metadata.json"
+        
+        # Create directories if they don't exist
+        self.conversations_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Current working directory (absolute path for comparison)
+        self.working_directory = str(Path.cwd().resolve())
+        
+        # Current conversation
+        self.current_conversation_id: Optional[str] = None
+        
+        # Load metadata
+        self._load_metadata()
+    
+    def _load_metadata(self) -> Dict[str, ConversationMetadata]:
+        """Load conversation metadata from file"""
+        if not self.metadata_file.exists():
+            return {}
+        
+        try:
+            with open(self.metadata_file, 'r') as f:
+                data = json.load(f)
+            
+            metadata = {}
+            for conv_id, conv_data in data.items():
+                metadata[conv_id] = ConversationMetadata(**conv_data)
+            
+            return metadata
+        except Exception as e:
+            print(f"Warning: Failed to load conversation metadata: {e}")
+            return {}
+    
+    def _save_metadata(self, metadata: Dict[str, ConversationMetadata]):
+        """Save conversation metadata to file"""
+        try:
+            data = {}
+            for conv_id, conv_meta in metadata.items():
+                data[conv_id] = asdict(conv_meta)
+            
+            with open(self.metadata_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving conversation metadata: {e}")
+    
+    def _conversation_file_path(self, conversation_id: str) -> Path:
+        """Get path for conversation file"""
+        return self.conversations_dir / f"{conversation_id}.json"
+    
+    def _generate_conversation_name(self, messages: List[ConversationMessage]) -> str:
+        """Generate a conversation name from the first user message"""
+        if not messages:
+            return f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        # Find first user message
+        first_user_message = None
+        for msg in messages:
+            if msg.role == "user":
+                first_user_message = msg
+                break
+        
+        if first_user_message:
+            # Use first 50 characters of the message
+            name = first_user_message.content.strip()[:50]
+            if len(first_user_message.content) > 50:
+                name += "..."
+            return name
+        else:
+            return f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    
+    def create_new_conversation(self, indexed_documents: List[str] = None) -> str:
+        """Create a new conversation and return its ID"""
+        conversation_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        # Create metadata
+        metadata = ConversationMetadata(
+            id=conversation_id,
+            name="New Chat",
+            working_directory=self.working_directory,
+            created_at=now,
+            updated_at=now,
+            message_count=0,
+            indexed_documents=indexed_documents or []
+        )
+        
+        # Save empty conversation
+        conversation_data = {
+            "id": conversation_id,
+            "metadata": asdict(metadata),
+            "messages": []
+        }
+        
+        conversation_file = self._conversation_file_path(conversation_id)
+        with open(conversation_file, 'w') as f:
+            json.dump(conversation_data, f, indent=2)
+        
+        # Update metadata
+        all_metadata = self._load_metadata()
+        all_metadata[conversation_id] = metadata
+        self._save_metadata(all_metadata)
+        
+        self.current_conversation_id = conversation_id
+        return conversation_id
+    
+    def save_conversation(self, conversation_id: str, messages: List[ConversationMessage], 
+                         indexed_documents: List[str] = None):
+        """Save conversation messages"""
+        try:
+            now = datetime.now().isoformat()
+            
+            # Convert messages to dict format
+            messages_data = []
+            for msg in messages:
+                messages_data.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat()
+                })
+            
+            # Load existing metadata
+            all_metadata = self._load_metadata()
+            if conversation_id in all_metadata:
+                conv_metadata = all_metadata[conversation_id]
+                # Update metadata
+                conv_metadata.updated_at = now
+                conv_metadata.message_count = len(messages)
+                if indexed_documents is not None:
+                    conv_metadata.indexed_documents = indexed_documents
+                
+                # Update name if it's still default
+                if conv_metadata.name == "New Chat" and messages:
+                    conv_metadata.name = self._generate_conversation_name(messages)
+            else:
+                # Create new metadata if doesn't exist
+                conv_metadata = ConversationMetadata(
+                    id=conversation_id,
+                    name=self._generate_conversation_name(messages),
+                    working_directory=self.working_directory,
+                    created_at=now,
+                    updated_at=now,
+                    message_count=len(messages),
+                    indexed_documents=indexed_documents or []
+                )
+                all_metadata[conversation_id] = conv_metadata
+            
+            # Save conversation data
+            conversation_data = {
+                "id": conversation_id,
+                "metadata": asdict(conv_metadata),
+                "messages": messages_data
+            }
+            
+            conversation_file = self._conversation_file_path(conversation_id)
+            with open(conversation_file, 'w') as f:
+                json.dump(conversation_data, f, indent=2)
+            
+            # Save metadata
+            self._save_metadata(all_metadata)
+            
+        except Exception as e:
+            print(f"Error saving conversation: {e}")
+    
+    def load_conversation(self, conversation_id: str) -> Optional[tuple[ConversationMetadata, List[ConversationMessage]]]:
+        """Load conversation by ID"""
+        try:
+            conversation_file = self._conversation_file_path(conversation_id)
+            if not conversation_file.exists():
+                return None
+            
+            with open(conversation_file, 'r') as f:
+                data = json.load(f)
+            
+            # Load metadata
+            metadata = ConversationMetadata(**data["metadata"])
+            
+            # Load messages
+            messages = []
+            for msg_data in data["messages"]:
+                message = ConversationMessage(
+                    role=msg_data["role"],
+                    content=msg_data["content"],
+                    timestamp=datetime.fromisoformat(msg_data["timestamp"])
+                )
+                messages.append(message)
+            
+            self.current_conversation_id = conversation_id
+            return metadata, messages
+            
+        except Exception as e:
+            print(f"Error loading conversation: {e}")
+            return None
+    
+    def list_local_conversations(self) -> List[ConversationMetadata]:
+        """List conversations from current working directory only"""
+        all_metadata = self._load_metadata()
+        
+        # Filter conversations for current directory
+        local_conversations = []
+        for conv_id, metadata in all_metadata.items():
+            if metadata.working_directory == self.working_directory:
+                local_conversations.append(metadata)
+        
+        # Sort by updated_at (most recent first)
+        local_conversations.sort(key=lambda x: x.updated_at, reverse=True)
+        return local_conversations
+    
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete a conversation"""
+        try:
+            # Remove conversation file
+            conversation_file = self._conversation_file_path(conversation_id)
+            if conversation_file.exists():
+                conversation_file.unlink()
+            
+            # Remove from metadata
+            all_metadata = self._load_metadata()
+            if conversation_id in all_metadata:
+                del all_metadata[conversation_id]
+                self._save_metadata(all_metadata)
+            
+            # Clear current if deleted
+            if self.current_conversation_id == conversation_id:
+                self.current_conversation_id = None
+            
+            return True
+        except Exception as e:
+            print(f"Error deleting conversation: {e}")
+            return False
+    
+    def rename_conversation(self, conversation_id: str, new_name: str) -> bool:
+        """Rename a conversation"""
+        try:
+            all_metadata = self._load_metadata()
+            if conversation_id not in all_metadata:
+                return False
+            
+            all_metadata[conversation_id].name = new_name
+            all_metadata[conversation_id].updated_at = datetime.now().isoformat()
+            
+            # Update the conversation file too
+            conversation_file = self._conversation_file_path(conversation_id)
+            if conversation_file.exists():
+                with open(conversation_file, 'r') as f:
+                    data = json.load(f)
+                
+                data["metadata"]["name"] = new_name
+                data["metadata"]["updated_at"] = all_metadata[conversation_id].updated_at
+                
+                with open(conversation_file, 'w') as f:
+                    json.dump(data, f, indent=2)
+            
+            self._save_metadata(all_metadata)
+            return True
+            
+        except Exception as e:
+            print(f"Error renaming conversation: {e}")
+            return False
+    
+    def get_last_conversation(self) -> Optional[str]:
+        """Get the most recently updated conversation ID from current directory"""
+        conversations = self.list_local_conversations()
+        if conversations:
+            return conversations[0].id
+        return None

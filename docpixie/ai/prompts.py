@@ -86,35 +86,24 @@ IMPORTANT:
 
 Please analyze the document images below and provide a detailed answer for this specific task."""
 
-SYNTHESIS_PROMPT = """You are DocPixie, synthesizing findings from multiple focused analyses to provide a comprehensive answer.
+SYNTHESIS_PROMPT = """You are DocPixie. Your job is to answer the user's specific question using the analysis results provided.
 
 ORIGINAL USER QUERY: {original_query}
 
-COMPLETED TASK RESULTS:
+ANALYSIS RESULTS:
 {results_text}
 
-SYNTHESIS GUIDELINES:
-1. Create a cohesive response that fully addresses the original query
-2. Integrate findings from all tasks into a logical narrative
-3. Highlight the most important insights and conclusions
-4. Structure the response clearly with sections if appropriate
+INSTRUCTIONS:
+- Answer ONLY what the user asked
+- Use ONLY information from the analysis results
+- Be conversational and natural in your response
+- Be direct and concise - don't over-explain
+- Never mention sources, citations, documents, or where information came from
+- If the analysis doesn't contain enough information to answer the query, say so clearly
+- Don't add extra context or background unless directly relevant to the query
+- Write as if you naturally know this information
 
-IMPORTANT RULES:
-- Use ALL relevant information from the task results
-- Avoid long answers, focus on the most important information to answer the user's query
-- Don't introduce new information not found in the task results
-- If tasks found contradictory information, acknowledge and explain it
-- If some aspects of the query couldn't be answered, clearly state what's missing
-- Maintain document citations from the task results
-- Do not include any citation of any document of pages.
-
-RESPONSE STRUCTURE GUIDELINES:
-- Start with a brief overview answering the main query
-- Present detailed findings organized by topic or importance
-- Use bullet points or numbered lists for clarity when appropriate
-- Keep the tone professional but conversational
-
-Please synthesize all task findings into a comprehensive response that fully addresses the user's original query."""
+Answer the user's question now."""
 
 # =============================================================================
 # NEW PROMPTS - For adaptive agent functionality
