@@ -30,7 +30,7 @@ from .config import get_config_manager
 from .conversation_storage import ConversationStorage
 from .widgets import (
     CommandPalette, CommandSelected, CommandAutoComplete,
-    ConversationListDialog, ConversationSelected, ConversationDeleted,
+    ConversationManagerDialog, ConversationSelected, ConversationDeleted,
     ModelSelectorDialog, ModelSelected,
     DocumentManagerDialog, DocumentRemoved, DocumentsIndexed
 )
@@ -726,8 +726,8 @@ class DocPixieTUI(App):
                 chat_log.write("[warning]No conversation to save[/warning]\n\n")
 
         elif command == "/conversations":
-            # Show conversation list dialog
-            await self.push_screen(ConversationListDialog(self.current_conversation_id))
+            # Show conversation manager dialog
+            await self.push_screen(ConversationManagerDialog(self.current_conversation_id))
 
         elif command == "/model":
             # Show model selector dialog

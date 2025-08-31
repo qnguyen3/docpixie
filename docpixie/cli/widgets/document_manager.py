@@ -33,6 +33,79 @@ class DocumentsIndexed(Message):
         super().__init__()
 
 
+class IndexingConfirmDialog(ModalScreen):
+    """Modal dialog to confirm document indexing"""
+
+    CSS = """
+    IndexingConfirmDialog {
+        align: center middle;
+    }
+
+    #confirm-container {
+        width: 50;
+        height: auto;
+        min-height: 10;
+        padding: 1;
+        background: $surface;
+        border: solid $success;
+    }
+
+    .confirm-title {
+        height: 1;
+        margin: 0 0 1 0;
+        color: $success;
+    }
+
+    .confirm-message {
+        height: 2;
+        margin: 0 0 1 0;
+    }
+
+    .confirm-hint {
+        height: 1;
+        align: center middle;
+        color: $text-muted;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, document_count: int):
+        super().__init__()
+        self.document_count = document_count
+        self.confirmed = False
+        self.parent_dialog = None  # Reference to parent DocumentManagerDialog
+
+    def compose(self):
+        """Create the confirmation dialog"""
+        with Container(id="confirm-container"):
+            yield Static("[bold]📚 Confirm Indexing[/bold]", classes="confirm-title")
+
+            if self.document_count == 1:
+                message = "Index 1 document?"
+            else:
+                message = f"Index {self.document_count} documents?"
+
+            yield Static(message, classes="confirm-message")
+            yield Static("[dim]This may take a moment depending on document size.[/dim]", classes="confirm-message")
+
+            yield Static(
+                "[dim]Press [bold]Y[/bold] to confirm or [bold]N[/bold] to cancel[/dim]",
+                classes="confirm-hint"
+            )
+
+    async def on_key(self, event: events.Key) -> None:
+        """Handle key events"""
+        if event.key.lower() == "y":
+            self.confirmed = True
+            # Trigger indexing in parent dialog
+            if self.parent_dialog:
+                asyncio.create_task(self.parent_dialog._perform_indexing_confirmed())
+            self.dismiss()
+        elif event.key.lower() == "n" or event.key == "escape":
+            self.confirmed = False
+            self.dismiss()
+
+
 class DeletionConfirmDialog(ModalScreen):
     """Modal dialog to confirm document deletion"""
 
@@ -101,11 +174,8 @@ class DeletionConfirmDialog(ModalScreen):
             # Send removal message if we have document IDs
             if self.document_ids and self.parent_dialog:
                 self.parent_dialog.post_message(DocumentRemoved(self.document_ids))
-                # Dismiss both dialogs
-                self.dismiss()
-                self.parent_dialog.dismiss()
-            else:
-                self.dismiss()
+            # Only dismiss the confirmation dialog, not the parent
+            self.dismiss()
         elif event.key.lower() == "n" or event.key == "escape":
             self.confirmed = False
             self.dismiss()
@@ -213,6 +283,7 @@ class DocumentManagerDialog(ModalScreen):
         self.document_items: List[ListItem] = []
         self.focused_index = 0
         self.indexing = False
+        self.pending_index_files: List[Path] = []  # Files pending indexing confirmation
         
         # Will be populated with all PDFs and their status
         self.all_items: List[Dict] = []
@@ -241,7 +312,7 @@ class DocumentManagerDialog(ModalScreen):
             
             # Control hints
             yield Static(
-                "[dim]↑↓[/dim] Navigate  [dim]Enter[/dim] Toggle Select  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
+                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
                 id="controls-hint"
             )
 
@@ -334,9 +405,9 @@ class DocumentManagerDialog(ModalScreen):
         else:
             display_text.append("[ ] ", style="dim")
         
-        # Column 2: Document name (45 chars fixed width)
+        # Column 2: Document name (35 chars fixed width to prevent wrapping)
         name_with_ext = f"{item['name']}.pdf"
-        max_name_length = 45
+        max_name_length = 35
         
         if len(name_with_ext) > max_name_length:
             # Truncate with ellipsis
@@ -354,7 +425,8 @@ class DocumentManagerDialog(ModalScreen):
             # For indexed documents
             doc = item['document']
             display_text.append("✅ Indexed", style="green")
-            display_text.append(f" ({doc.page_count} pages)", style="dim")
+            display_text.append(" | ", style="dim")
+            display_text.append(f"{doc.page_count} pages", style="dim")
         else:
             # For unindexed documents
             display_text.append("⚪ Not indexed", style="yellow")
@@ -468,13 +540,27 @@ class DocumentManagerDialog(ModalScreen):
                     break
         
         if to_index:
+            # Store the files to index
+            self.pending_index_files = to_index
+            
+            # Show confirmation dialog
+            confirm_dialog = IndexingConfirmDialog(len(to_index))
+            confirm_dialog.parent_dialog = self
+            self.app.push_screen(confirm_dialog)
+    
+    async def _perform_indexing_confirmed(self):
+        """Perform indexing after confirmation"""
+        if hasattr(self, 'pending_index_files') and self.pending_index_files:
             self.indexing = True
             # Show progress container
             progress_container = self.query_one("#progress-container", Container)
             progress_container.add_class("visible")
             
             # Start indexing
-            asyncio.create_task(self._perform_indexing(to_index))
+            await self._perform_indexing(self.pending_index_files)
+            
+            # Clear pending files
+            self.pending_index_files = []
     
     async def _update_spinner_animation(self, stop_event: asyncio.Event):
         """Background task to update spinner animation smoothly"""
@@ -493,8 +579,8 @@ class DocumentManagerDialog(ModalScreen):
                 
                 # Create display with current state
                 display_text = (
-                    f"[bold magenta]{spinner}[/bold magenta] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
-                    f"[bold magenta]{state['bar_filled']}[/bold magenta][dim]{state['bar_empty']}[/dim] {state['progress']}%"
+                    f"[bold rgb(147,112,219)]{spinner}[/bold rgb(147,112,219)] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
+                    f"[rgb(147,112,219)]{state['bar_filled']}[/rgb(147,112,219)][dim]{state['bar_empty']}[/dim] {state['progress']}%"
                 )
                 
                 progress_display.update(display_text)
@@ -581,7 +667,7 @@ class DocumentManagerDialog(ModalScreen):
         if indexed_docs:
             display_text = (
                 f"[bold green]✅[/bold green] Completed: Indexed {len(indexed_docs)} document(s)\n"
-                f"[bold magenta]{'█' * 30}[/bold magenta] 100%"
+                f"[rgb(147,112,219)]{'█' * 30}[/rgb(147,112,219)] 100%"
             )
             progress_display.update(display_text)
             await asyncio.sleep(0.5)  # Brief pause to show completion
@@ -648,6 +734,37 @@ class DocumentManagerDialog(ModalScreen):
         elif event.key.lower() == "d":
             # Delete selected indexed documents with confirmation
             await self._remove_selected()
+
+    async def on_document_removed(self, event: DocumentRemoved) -> None:
+        """Handle document removal message"""
+        # Remove documents from our local lists
+        for doc_id in event.document_ids:
+            # Find and remove from indexed_documents
+            for doc in self.indexed_documents[:]:
+                if doc.id == doc_id:
+                    self.indexed_documents.remove(doc)
+                    
+                    # Also update all_items to mark as unindexed
+                    for item in self.all_items:
+                        if item['name'] == doc.name:
+                            item['is_indexed'] = False
+                            item['document'] = None
+                            break
+                    break
+        
+        # Clear selections for removed documents
+        for doc_id in event.document_ids:
+            for doc in self.indexed_documents:
+                if doc.id == doc_id and doc.name in self.selected_items:
+                    self.selected_items.remove(doc.name)
+        
+        # Refresh the display
+        self._load_document_list()
+        self._update_title()
+        self._update_selection_info()
+        
+        # Continue propagating the message to the app
+        event.stop = False
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle list item click"""
