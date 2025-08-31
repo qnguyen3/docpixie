@@ -357,13 +357,8 @@ class DocPixieTUI(App):
             # Initialize DocPixie
             self.docpixie = DocPixie(config=config)
             
-            # Re-add existing indexed documents to the new instance
-            # This maintains document references without re-indexing
-            if hasattr(self, 'indexed_documents') and self.indexed_documents:
-                for doc in self.indexed_documents:
-                    # Documents are already in storage, just add to instance
-                    if hasattr(self.docpixie, 'documents'):
-                        self.docpixie.documents[doc.id] = doc
+            # Note: Documents are persisted in storage, no need to re-add them
+            # They will be loaded from storage when needed
             
             return True
         except Exception as e:
@@ -749,11 +744,14 @@ class DocPixieTUI(App):
                     removed_count += 1
                     
                     # Also remove from storage
-                    if self.docpixie and self.docpixie.storage:
+                    if self.docpixie:
                         try:
-                            self.docpixie.storage.remove_document(doc_id)
-                        except:
-                            pass  # Storage might not have remove method
+                            # Use the sync wrapper to delete from storage
+                            success = self.docpixie.delete_document_sync(doc_id)
+                            if not success:
+                                chat_log.write(f"[warning]Warning: Could not delete {doc.name} from storage[/warning]\n")
+                        except Exception as e:
+                            chat_log.write(f"[error]Error deleting {doc.name}: {e}[/error]\n")
         
         if removed_count == 1:
             chat_log.write(f"[success]✅ Removed 1 document from index[/success]\n\n")
