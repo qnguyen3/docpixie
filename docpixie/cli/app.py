@@ -102,18 +102,31 @@ class DocPixieTUI(App):
 
     #chat-log {
         height: 1fr;
-        border: solid $primary;
+        border: solid #4a2c2c;
+        background: #2a1818;
         padding: 1;
     }
 
     #input-container {
         height: 3;
         padding: 0 1;
+        background: #2a1818;
+    }
+
+    #prompt-indicator {
+        width: 2;
+        color: #ff99cc;
+        padding: 0;
+        background: #2a1818;
+    }
+
+    #chat-input {
+        background: #2a1818;
     }
 
     #status-bar {
         height: 1;
-        background: $boost;
+        background: #2a1818;
         color: $text;
         padding: 0 1;
     }
@@ -176,6 +189,7 @@ class DocPixieTUI(App):
                 yield Label(self.get_status_text(), id="status-label")
 
             with Horizontal(id="input-container"):
+                yield Static(">", id="prompt-indicator")
                 yield Input(
                     placeholder="Type your message or / for commands...",
                     id="chat-input"
