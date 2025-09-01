@@ -163,6 +163,37 @@ class DocPixieTUI(App):
         border: none;
     }
     
+    /* Override TextArea internal component backgrounds */
+    #chat-input > .text-area--scrollbar {
+        background: #2d1f2d;
+    }
+    
+    #chat-input > ScrollableContainer {
+        background: #2d1f2d;
+    }
+    
+    ChatInput {
+        background: #2d1f2d !important;
+    }
+    
+    ChatInput > .text-area--scrollbar {
+        background: #2d1f2d;
+    }
+    
+    ChatInput .text-area--cursor-line {
+        background: #2d1f2d;
+    }
+    
+    /* Target TextArea document and container but preserve cursor */
+    #chat-input .text-area--document {
+        background: #2d1f2d;
+    }
+    
+    #chat-input .text-area--selection {
+        background: #4a3344;
+    }
+    
+    /* Cursor should remain visible - this comes last to override */
     #chat-input .text-area--cursor {
         background: #ff99cc;
     }
