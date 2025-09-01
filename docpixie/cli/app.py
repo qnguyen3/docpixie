@@ -191,8 +191,9 @@ class DocPixieTUI(App):
         text_model, vision_model = self.config_manager.get_models()
         doc_count = len(self.indexed_documents)
 
-        # Add conversation info
+        # Add conversation info and cost
         conversation_info = ""
+        cost_info = ""
         if self.current_conversation_id:
             conversations = self.conversation_storage.list_local_conversations()
             current_conv = next(
@@ -201,8 +202,15 @@ class DocPixieTUI(App):
             )
             if current_conv:
                 conversation_info = f" | 💬 {current_conv.name[:20]}" + ("..." if len(current_conv.name) > 20 else "")
+                # Always show cost, default to 0
+                total_cost = getattr(current_conv, 'total_cost', 0.0) or 0.0
+                # Format cost based on size
+                if total_cost < 0.01:
+                    cost_info = f" | 💰 ${total_cost:.6f}"
+                else:
+                    cost_info = f" | 💰 ${total_cost:.4f}"
 
-        return f"📚 Docs: {doc_count} | 🤖 {text_model.split('/')[-1]} | 👁️ {vision_model.split('/')[-1]}{conversation_info}"
+        return f"📚 Docs: {doc_count} | 🤖 {text_model.split('/')[-1]} | 👁️ {vision_model.split('/')[-1]}{conversation_info}{cost_info}"
 
     async def on_mount(self) -> None:
         """Initialize the app when mounted"""
@@ -592,6 +600,12 @@ class DocPixieTUI(App):
                         md = Markdown(msg.content)
                         assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
                         chat_log.write(assistant_panel)
+                        # Always show cost (default to 0)
+                        cost = getattr(msg, 'cost', 0.0) or 0.0
+                        if cost < 0.01:
+                            chat_log.write(f"[dim]💰 Cost: ${cost:.6f}[/dim]\n")
+                        else:
+                            chat_log.write(f"[dim]💰 Cost: ${cost:.4f}[/dim]\n")
 
                 # Update status bar
                 status_label = self.query_one("#status-label", Label)
@@ -807,15 +821,24 @@ class DocPixieTUI(App):
 
             if hasattr(result, 'processing_time') and result.processing_time > 0:
                 chat_log.write(f"[dim]⏱️ Processing time: {result.processing_time:.2f}s[/dim]\n")
+            
+            # Always display cost (default to 0 if not available)
+            cost = getattr(result, 'total_cost', 0.0) or 0.0
+            # Format based on size
+            if cost < 0.01:
+                chat_log.write(f"[dim]💰 Cost: ${cost:.6f}[/dim]\n")
+            else:
+                chat_log.write(f"[dim]💰 Cost: ${cost:.4f}[/dim]\n")
 
             chat_log.write("\n")
 
-            # Update conversation history
+            # Update conversation history with cost
             self.conversation_history.append(
                 ConversationMessage(role="user", content=query)
             )
             self.conversation_history.append(
-                ConversationMessage(role="assistant", content=result.answer)
+                ConversationMessage(role="assistant", content=result.answer, 
+                                  cost=getattr(result, 'total_cost', 0.0) or 0.0)
             )
 
             # Limit conversation history

@@ -25,6 +25,7 @@ class ConversationMessage:
     role: str  # "user" or "assistant"
     content: str
     timestamp: datetime = field(default_factory=datetime.now)
+    cost: float = 0.0  # Cost for this message (agent pipeline total for assistant messages)
 
     def __post_init__(self):
         """Validate message data"""
@@ -111,6 +112,7 @@ class QueryResult:
     task_results: List[TaskResult] = field(default_factory=list)
     total_iterations: int = 0
     processing_time_seconds: float = 0.0
+    total_cost: float = 0.0  # Total cost of all API calls for this query
 
     def get_unique_pages(self) -> List[Page]:
         """Get unique pages from all task results"""

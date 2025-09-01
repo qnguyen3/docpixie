@@ -87,6 +87,7 @@ class QueryResult:
     confidence: float = 0.0
     processing_time: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    total_cost: float = 0.0  # Total cost of all API calls for this query
     
     def __post_init__(self):
         """Validate result data"""

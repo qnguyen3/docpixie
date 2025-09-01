@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 class OpenRouterProvider(BaseProvider):
     """OpenRouter provider for raw API operations"""
-    
+
     def __init__(self, config: DocPixieConfig):
         super().__init__(config)
-        
+
         if not config.openrouter_api_key:
             raise ValueError("OpenRouter API key is required")
-        
+
         # Import here to make it optional dependency
         try:
             from openai import AsyncOpenAI
@@ -30,13 +30,13 @@ class OpenRouterProvider(BaseProvider):
             )
         except ImportError:
             raise ImportError("OpenAI library not found. Install with: pip install openai")
-        
+
         self.model = config.vision_model
-    
+
     async def process_text_messages(
-        self, 
-        messages: List[Dict[str, Any]], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process text-only messages through OpenRouter API"""
@@ -45,49 +45,75 @@ class OpenRouterProvider(BaseProvider):
                 model=self.config.model,
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                extra_body= {
+                      "usage": {
+                        "include": True,
+                      },
+                },
             )
-            
+
             result = response.choices[0].message.content.strip()
             logger.debug(f"OpenRouter text response: {result[:50]}...")
-            
+
+            # Track cost if available
+            if hasattr(response, 'usage') and hasattr(response.usage, 'cost'):
+                self.last_api_cost = response.usage.cost
+                self.total_cost += response.usage.cost
+                logger.debug(f"OpenRouter API cost: ${response.usage.cost}")
+            else:
+                self.last_api_cost = None
+
             return result
-            
+
         except Exception as e:
             logger.error(f"OpenRouter text processing failed: {e}")
             raise ProviderError(f"Text processing failed: {e}", "openrouter")
-    
+
     async def process_multimodal_messages(
-        self, 
-        messages: List[Dict[str, Any]], 
-        max_tokens: int = 300, 
+        self,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 300,
         temperature: float = 0.3
     ) -> str:
         """Process multimodal messages (text + images) through OpenRouter API"""
         try:
             # Process messages to convert image paths to data URLs
             processed_messages = self._prepare_openai_messages(messages)
-            
+
             response = await self.client.chat.completions.create(
                 model=self.model,  # Use vision model
                 messages=processed_messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                extra_body= {
+                      "usage": {
+                        "include": True,
+                      },
+                },
             )
-            
+
             result = response.choices[0].message.content.strip()
             logger.debug(f"OpenRouter multimodal response: {result[:50]}...")
-            
+
+            # Track cost if available
+            if hasattr(response, 'usage') and hasattr(response.usage, 'cost'):
+                self.last_api_cost = response.usage.cost
+                self.total_cost += response.usage.cost
+                logger.debug(f"OpenRouter API cost: ${response.usage.cost}")
+            else:
+                self.last_api_cost = None
+
             return result
-            
+
         except Exception as e:
             logger.error(f"OpenRouter multimodal processing failed: {e}")
             raise ProviderError(f"Multimodal processing failed: {e}", "openrouter")
-    
+
     def _prepare_openai_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare messages for OpenRouter API by converting image paths to data URLs"""
         processed_messages = []
-        
+
         for message in messages:
             if message["role"] == "system":
                 # System messages are text-only
@@ -95,7 +121,7 @@ class OpenRouterProvider(BaseProvider):
             elif message["role"] == "user" and isinstance(message["content"], list):
                 # User message with multimodal content
                 processed_content = []
-                
+
                 for content_item in message["content"]:
                     if content_item["type"] == "text":
                         processed_content.append(content_item)
@@ -116,7 +142,7 @@ class OpenRouterProvider(BaseProvider):
                     else:
                         # Pass through other content types
                         processed_content.append(content_item)
-                
+
                 processed_messages.append({
                     "role": message["role"],
                     "content": processed_content
@@ -124,5 +150,5 @@ class OpenRouterProvider(BaseProvider):
             else:
                 # Regular text message
                 processed_messages.append(message)
-        
+
         return processed_messages

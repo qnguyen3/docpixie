@@ -60,6 +60,14 @@ class PixieRAGAgent:
 
         logger.info("Initialized DocPixie RAG Agent")
 
+    def _accumulate_cost(self, total_cost: float) -> float:
+        """Accumulate cost from last API call if available"""
+        if hasattr(self.provider, 'get_last_cost'):
+            last_cost = self.provider.get_last_cost()
+            if last_cost is not None:
+                return total_cost + last_cost
+        return total_cost
+
     async def process_query(
         self,
         query: str,
@@ -77,6 +85,7 @@ class PixieRAGAgent:
             QueryResult with comprehensive response and metadata
         """
         start_time = time.time()
+        total_cost = 0.0  # Track total cost for this query
 
         try:
             logger.info(f"Processing query: {query[:100]}...")
@@ -89,6 +98,7 @@ class PixieRAGAgent:
                 processed_context, display_messages = await self.context_processor.process_conversation_context(
                     conversation_history, query
                 )
+                total_cost = self._accumulate_cost(total_cost)
                 logger.info("Processed conversation context")
 
             # Step 2: Query Reformulation (if conversation context exists)
@@ -101,11 +111,12 @@ class PixieRAGAgent:
 
             # Step 3: Query Classification
             classification = await self.query_classifier.classify_query(reformulated_query)
+            total_cost = self._accumulate_cost(total_cost)
             logger.info(f"Query classification: {classification['reasoning']}")
 
             # If query doesn't need documents, return direct answer
             if not classification["needs_documents"]:
-                return self._create_direct_answer_result(query, classification["reasoning"])
+                return self._create_direct_answer_result(query, classification["reasoning"], total_cost)
 
             # Step 4: Get all available documents and pages
             documents = await self.storage.get_all_documents()
@@ -127,6 +138,9 @@ class PixieRAGAgent:
             task_results = await self._execute_adaptive_plan(
                 task_plan, reformulated_query, documents, conversation_history, task_update_callback
             )
+            
+            # Accumulate any costs from task execution
+            total_cost = self._accumulate_cost(total_cost)
 
             # Step 7: Synthesize final response
             final_answer = await self.synthesizer.synthesize_response(reformulated_query, task_results)
@@ -143,7 +157,8 @@ class PixieRAGAgent:
                 selected_pages=all_selected_pages,
                 task_results=task_results,
                 total_iterations=task_plan.current_iteration,
-                processing_time_seconds=processing_time
+                processing_time_seconds=processing_time,
+                total_cost=total_cost  # Always include cost, even if 0
             )
 
             logger.info(f"Query processed successfully in {processing_time:.2f}s")
@@ -368,7 +383,8 @@ class PixieRAGAgent:
             selected_pages=[],
             task_results=[],
             total_iterations=0,
-            processing_time_seconds=0.0
+            processing_time_seconds=0.0,
+            total_cost=0.0  # Always include cost, even if 0
         )
 
     def _create_error_result(
@@ -384,10 +400,11 @@ class PixieRAGAgent:
             selected_pages=[],
             task_results=[],
             total_iterations=0,
-            processing_time_seconds=processing_time
+            processing_time_seconds=processing_time,
+            total_cost=0.0  # Always include cost, even if 0
         )
 
-    def _create_direct_answer_result(self, query: str, reasoning: str) -> QueryResult:
+    def _create_direct_answer_result(self, query: str, reasoning: str, total_cost: float = 0.0) -> QueryResult:
         """Create result when query doesn't need document analysis"""
         return QueryResult(
             query=query,
@@ -395,7 +412,8 @@ class PixieRAGAgent:
             selected_pages=[],
             task_results=[],
             total_iterations=0,
-            processing_time_seconds=0.0
+            processing_time_seconds=0.0,
+            total_cost=total_cost  # Always include cost, even if 0
         )
 
     async def process_conversation_query(

@@ -4,8 +4,9 @@ Base provider interface for vision AI operations
 
 import base64
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 from pathlib import Path
+from dataclasses import dataclass
 import logging
 
 from ..core.config import DocPixieConfig
@@ -13,11 +14,20 @@ from ..core.config import DocPixieConfig
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class APIResult:
+    """Container for API response with optional cost tracking"""
+    text: str
+    cost: Optional[float] = None
+
+
 class BaseProvider(ABC):
     """Base class for AI vision providers"""
     
     def __init__(self, config: DocPixieConfig):
         self.config = config
+        self.last_api_cost: Optional[float] = None  # Track cost of last API call
+        self.total_cost: float = 0.0  # Track total cost across all calls
     
     @abstractmethod
     async def process_text_messages(
@@ -38,6 +48,19 @@ class BaseProvider(ABC):
     ) -> str:
         """Process messages with text and images through the provider API"""
         pass
+    
+    def get_last_cost(self) -> Optional[float]:
+        """Get the cost of the last API call (if available)"""
+        return self.last_api_cost
+    
+    def get_total_cost(self) -> float:
+        """Get the total accumulated cost"""
+        return self.total_cost
+    
+    def reset_cost_tracking(self):
+        """Reset cost tracking"""
+        self.last_api_cost = None
+        self.total_cost = 0.0
     
     # Helper methods for image handling (shared by all providers)
     

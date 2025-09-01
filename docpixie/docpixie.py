@@ -177,6 +177,7 @@ class DocPixie:
                 mode=mode,  # Keep the requested mode for compatibility
                 confidence=self._calculate_confidence(agent_result),
                 processing_time=agent_result.processing_time_seconds,
+                total_cost=agent_result.total_cost,  # Include the cost
                 metadata={
                     'agent_iterations': agent_result.total_iterations,
                     'tasks_completed': len(agent_result.task_results),
@@ -195,6 +196,7 @@ class DocPixie:
                 mode=mode,
                 confidence=0.0,
                 processing_time=0.0,
+                total_cost=0.0,
                 metadata={'error': str(e)}
             )
     

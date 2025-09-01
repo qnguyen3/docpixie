@@ -24,6 +24,7 @@ class ConversationMetadata:
     updated_at: str
     message_count: int
     indexed_documents: List[str]  # List of document IDs that were indexed when conversation created
+    total_cost: float = 0.0  # Total cost of all messages in this conversation
 
 
 class ConversationStorage:
@@ -58,6 +59,9 @@ class ConversationStorage:
             
             metadata = {}
             for conv_id, conv_data in data.items():
+                # Handle backward compatibility - add total_cost if missing
+                if 'total_cost' not in conv_data:
+                    conv_data['total_cost'] = 0.0
                 metadata[conv_id] = ConversationMetadata(**conv_data)
             
             return metadata
@@ -115,7 +119,8 @@ class ConversationStorage:
             created_at=now,
             updated_at=now,
             message_count=0,
-            indexed_documents=indexed_documents or []
+            indexed_documents=indexed_documents or [],
+            total_cost=0.0
         )
         
         # Save empty conversation
@@ -143,14 +148,20 @@ class ConversationStorage:
         try:
             now = datetime.now().isoformat()
             
-            # Convert messages to dict format
+            # Convert messages to dict format and calculate total cost
             messages_data = []
+            total_cost = 0.0
             for msg in messages:
-                messages_data.append({
+                msg_dict = {
                     "role": msg.role,
                     "content": msg.content,
                     "timestamp": msg.timestamp.isoformat()
-                })
+                }
+                # Always add cost (default to 0)
+                msg_cost = getattr(msg, 'cost', 0.0) or 0.0
+                msg_dict["cost"] = msg_cost
+                total_cost += msg_cost
+                messages_data.append(msg_dict)
             
             # Load existing metadata
             all_metadata = self._load_metadata()
@@ -159,6 +170,7 @@ class ConversationStorage:
                 # Update metadata
                 conv_metadata.updated_at = now
                 conv_metadata.message_count = len(messages)
+                conv_metadata.total_cost = total_cost
                 if indexed_documents is not None:
                     conv_metadata.indexed_documents = indexed_documents
                 
@@ -174,7 +186,8 @@ class ConversationStorage:
                     created_at=now,
                     updated_at=now,
                     message_count=len(messages),
-                    indexed_documents=indexed_documents or []
+                    indexed_documents=indexed_documents or [],
+                    total_cost=total_cost
                 )
                 all_metadata[conversation_id] = conv_metadata
             
@@ -214,7 +227,8 @@ class ConversationStorage:
                 message = ConversationMessage(
                     role=msg_data["role"],
                     content=msg_data["content"],
-                    timestamp=datetime.fromisoformat(msg_data["timestamp"])
+                    timestamp=datetime.fromisoformat(msg_data["timestamp"]),
+                    cost=msg_data.get("cost", 0.0)  # Load cost, default to 0
                 )
                 messages.append(message)
             
