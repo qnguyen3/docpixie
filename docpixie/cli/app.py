@@ -124,6 +124,8 @@ class DocPixieTUI(App):
     #chat-container {
         height: 100%;
         layout: vertical;
+        background: #2d1f2d;
+        padding: 0 1 1 1;
     }
 
     #chat-log {
@@ -139,7 +141,7 @@ class DocPixieTUI(App):
         min-height: 3;
         max-height: 12;
         padding: 0;
-        margin: 0 1 0 1;
+        margin: 0;
         background: #2d1f2d;
         border: solid #ff99cc;
     }
@@ -199,6 +201,14 @@ class DocPixieTUI(App):
     /* Cursor should remain visible - this comes last to override */
     #chat-input .text-area--cursor {
         background: #ff99cc;
+    }
+    
+    #input-hint {
+        height: 1;
+        color: #bda6b6;
+        background: #2d1f2d;
+        padding: 0 1;
+        margin: 0;
     }
     
     #status-bar {
@@ -276,6 +286,12 @@ class DocPixieTUI(App):
                 # Set a placeholder-like initial hint
                 text_area.show_line_numbers = False
                 yield text_area
+            
+            # Control hints below the input
+            yield Label(
+                "Press / for commands • Shift+Enter for new line",
+                id="input-hint",
+            )
             
 
         # Command palette (initially hidden)
