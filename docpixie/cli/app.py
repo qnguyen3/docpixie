@@ -143,7 +143,7 @@ class DocPixieTUI(App):
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+n", "new_conversation", "New Conversation"),
         ("ctrl+l", "show_conversations", "Conversations"),
-        ("ctrl+m", "show_models", "Model Config"),
+        ("ctrl+o", "show_models", "Model Config"),
         ("ctrl+d", "show_documents", "Documents"),
         ("ctrl+slash", "toggle_palette", "Commands"),
     ]
@@ -753,7 +753,7 @@ class DocPixieTUI(App):
             chat_log.write("  /conversations - Switch between conversations (Ctrl+L)\n")
             chat_log.write("  /save         - Save current conversation\n")
             chat_log.write("  /clear        - Clear the chat display\n")
-            chat_log.write("  /model        - Configure AI models (Ctrl+M)\n")
+            chat_log.write("  /model        - Configure AI models (Ctrl+O)\n")
             chat_log.write("  /documents    - Manage and index documents (Ctrl+D)\n")
             chat_log.write("  /help         - Show this help message\n")
             chat_log.write("  /exit         - Exit the program (Ctrl+Q)\n\n")
