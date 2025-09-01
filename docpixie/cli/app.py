@@ -274,6 +274,22 @@ class DocPixieTUI(App):
             # Show welcome message (only if requested)
             if show_welcome:
                 self.show_welcome_message()
+                
+            # Display loaded conversation history after welcome message
+            if self.current_conversation_id and self.conversation_history:
+                chat_log.write(f"[dim]━━━ Restored previous conversation ━━━[/dim]\n\n")
+                
+                # Display conversation history
+                for msg in self.conversation_history:
+                    if msg.role == "user":
+                        chat_log.write(f"[bold green]👤 You:[/bold green] {msg.content}\n")
+                    else:
+                        chat_log.write(f"[bold blue]🤖 Assistant:[/bold blue]\n")
+                        md = Markdown(msg.content)
+                        chat_log.write(md)
+                        chat_log.write("\n")
+                
+                chat_log.write(f"[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
 
         except Exception as e:
             chat_log.write(f"[error]❌ Failed to initialize: {e}[/error]")
