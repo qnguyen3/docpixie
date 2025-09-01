@@ -8,7 +8,7 @@ import logging
 from typing import List, Optional, Dict, Any
 
 from ..models.agent import (
-    ConversationMessage, TaskPlan, TaskResult, QueryResult, TaskStatus
+    ConversationMessage, TaskPlan, TaskResult, AgentQueryResult, TaskStatus
 )
 from ..models.document import Document, Page
 from ..providers.base import BaseProvider
@@ -73,7 +73,7 @@ class PixieRAGAgent:
         query: str,
         conversation_history: Optional[List[ConversationMessage]] = None,
         task_update_callback: Optional[Any] = None
-    ) -> QueryResult:
+    ) -> AgentQueryResult:
         """
         Process a user query with adaptive task planning and execution
 
@@ -82,7 +82,7 @@ class PixieRAGAgent:
             conversation_history: Previous conversation context
 
         Returns:
-            QueryResult with comprehensive response and metadata
+            AgentQueryResult with comprehensive response and metadata
         """
         start_time = time.time()
         total_cost = 0.0  # Track total cost for this query
@@ -151,7 +151,7 @@ class PixieRAGAgent:
             for result in task_results:
                 all_selected_pages.extend(result.selected_pages)
 
-            result = QueryResult(
+            result = AgentQueryResult(
                 query=query,
                 answer=final_answer,
                 selected_pages=all_selected_pages,
@@ -375,9 +375,9 @@ class PixieRAGAgent:
 
         return "\n".join(context_parts)
 
-    def _create_no_documents_result(self, query: str) -> QueryResult:
+    def _create_no_documents_result(self, query: str) -> AgentQueryResult:
         """Create result when no documents are available"""
-        return QueryResult(
+        return AgentQueryResult(
             query=query,
             answer="I don't have any documents to analyze. Please upload some documents first.",
             selected_pages=[],
@@ -392,9 +392,9 @@ class PixieRAGAgent:
         query: str,
         error_message: str,
         processing_time: float
-    ) -> QueryResult:
+    ) -> AgentQueryResult:
         """Create result when processing fails"""
-        return QueryResult(
+        return AgentQueryResult(
             query=query,
             answer=f"I encountered an error while processing your query: {error_message}",
             selected_pages=[],
@@ -404,9 +404,9 @@ class PixieRAGAgent:
             total_cost=0.0  # Always include cost, even if 0
         )
 
-    def _create_direct_answer_result(self, query: str, reasoning: str, total_cost: float = 0.0) -> QueryResult:
+    def _create_direct_answer_result(self, query: str, reasoning: str, total_cost: float = 0.0) -> AgentQueryResult:
         """Create result when query doesn't need document analysis"""
-        return QueryResult(
+        return AgentQueryResult(
             query=query,
             answer=f"This query doesn't require document analysis. {reasoning}",
             selected_pages=[],
@@ -420,7 +420,7 @@ class PixieRAGAgent:
         self,
         query: str,
         conversation_history: List[ConversationMessage]
-    ) -> QueryResult:
+    ) -> AgentQueryResult:
         """
         Process a query in conversation context
         This is a convenience method that handles conversation-aware processing

@@ -104,8 +104,8 @@ class TaskResult:
 
 
 @dataclass
-class QueryResult:
-    """Represents the final result of processing a user query"""
+class AgentQueryResult:
+    """Represents the final result of processing a user query through the agent pipeline"""
     query: str
     answer: str
     selected_pages: List[Page]

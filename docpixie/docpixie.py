@@ -169,7 +169,7 @@ class DocPixie:
             # Use the adaptive RAG agent for processing
             agent_result = await self.agent.process_query(question, conversation_history, task_update_callback)
             
-            # Convert agent QueryResult to API QueryResult format
+            # Convert AgentQueryResult to public API QueryResult format
             return QueryResult(
                 query=agent_result.query,
                 answer=agent_result.answer,

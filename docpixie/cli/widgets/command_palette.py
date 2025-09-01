@@ -24,11 +24,11 @@ class CommandItem:
         return f"{self.command} - {self.description}"
 
 
-class CommandPalette(Container):
-    """Command palette overlay widget"""
+class DocPixieCommandPalette(Container):
+    """Command palette overlay widget for DocPixie"""
     
     DEFAULT_CSS = """
-    CommandPalette {
+    DocPixieCommandPalette {
         display: none;
         layer: overlay;
         dock: bottom;
@@ -42,7 +42,7 @@ class CommandPalette(Container):
         align: center bottom;
     }
     
-    CommandPalette.visible {
+    DocPixieCommandPalette.visible {
         display: block;
     }
     

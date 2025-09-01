@@ -2,7 +2,7 @@
 DocPixie CLI Widgets
 """
 
-from .command_palette import CommandPalette, CommandSelected, CommandAutoComplete
+from .command_palette import DocPixieCommandPalette as CommandPalette, CommandSelected, CommandAutoComplete
 from .conversation_manager import ConversationManagerDialog, ConversationSelected, ConversationDeleted
 from .model_selector import ModelSelectorDialog, ModelSelected
 from .document_manager import DocumentManagerDialog, DocumentRemoved, DocumentsIndexed
