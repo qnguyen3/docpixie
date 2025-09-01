@@ -123,6 +123,7 @@ class DocPixieTUI(App):
     CSS = """
     #chat-container {
         height: 100%;
+        layout: vertical;
     }
 
     #chat-log {
@@ -130,14 +131,17 @@ class DocPixieTUI(App):
         border: solid #4a3344;
         background: #2d1f2d;
         padding: 1;
+        min-height: 10;
     }
 
     #input-container {
         height: auto;
         min-height: 3;
         max-height: 12;
-        padding: 0 1;
+        padding: 0;
+        margin: 0 1 0 1;
         background: #2d1f2d;
+        border: solid #ff99cc;
     }
 
     #prompt-indicator {
@@ -146,7 +150,6 @@ class DocPixieTUI(App):
         padding: 0;
         background: #2d1f2d;
         margin: 0;
-        padding-top: 1;
     }
 
     #chat-input {
@@ -155,7 +158,7 @@ class DocPixieTUI(App):
         max-height: 10;
         height: auto;
         border: none;
-        padding: 1 0 0 0;
+        padding: 0;
         margin: 0;
     }
     
@@ -197,7 +200,7 @@ class DocPixieTUI(App):
     #chat-input .text-area--cursor {
         background: #ff99cc;
     }
-
+    
     #status-bar {
         height: 1;
         background: #2d1f2d;
@@ -273,6 +276,7 @@ class DocPixieTUI(App):
                 # Set a placeholder-like initial hint
                 text_area.show_line_numbers = False
                 yield text_area
+            
 
         # Command palette (initially hidden)
         yield CommandPalette(id="command-palette")
