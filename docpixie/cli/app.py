@@ -11,8 +11,9 @@ from datetime import datetime
 
 from textual import events
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Header, Footer, Input, Static, RichLog, Button, Label, ProgressBar
+from textual.widgets import Header, Footer, Input, Static, RichLog, Button, Label, ProgressBar, TextArea
 from textual.screen import Screen, ModalScreen
 from textual.reactive import reactive
 from textual.message import Message
@@ -34,6 +35,27 @@ from .widgets import (
     ModelSelectorDialog, ModelSelected,
     DocumentManagerDialog, DocumentRemoved, DocumentsIndexed
 )
+
+
+class ChatInput(TextArea):
+    """Custom TextArea for chat input with Enter to submit"""
+    
+    # Override default TextArea bindings with priority
+    BINDINGS = [
+        # Important: handle Shift+Enter before Enter so newline takes precedence
+        Binding("shift+enter", "add_newline", "New line", priority=True),
+        Binding("enter", "submit_message", "Submit", priority=True),
+    ]
+    
+    def action_submit_message(self) -> None:
+        """Submit on Enter"""
+        app = self.app
+        if hasattr(app, 'submit_chat_message'):
+            asyncio.create_task(app.submit_chat_message())
+    
+    def action_add_newline(self) -> None:
+        """Add a newline on Shift+Enter"""
+        self.insert("\n")
 
 
 class SetupScreen(Screen):
@@ -108,7 +130,9 @@ class DocPixieTUI(App):
     }
 
     #input-container {
-        height: 3;
+        height: auto;
+        min-height: 3;
+        max-height: 12;
         padding: 0 1;
         background: #2d1f2d;
     }
@@ -118,10 +142,26 @@ class DocPixieTUI(App):
         color: #ff99cc;
         padding: 0;
         background: #2d1f2d;
+        margin: 0;
+        padding-top: 1;
     }
 
     #chat-input {
         background: #2d1f2d;
+        min-height: 1;
+        max-height: 10;
+        height: auto;
+        border: none;
+        padding: 1 0 0 0;
+        margin: 0;
+    }
+    
+    #chat-input:focus {
+        border: none;
+    }
+    
+    #chat-input .text-area--cursor {
+        background: #ff99cc;
     }
 
     #status-bar {
@@ -190,10 +230,15 @@ class DocPixieTUI(App):
 
             with Horizontal(id="input-container"):
                 yield Static(">", id="prompt-indicator")
-                yield Input(
-                    placeholder="Type your message or / for commands...",
-                    id="chat-input"
+                text_area = ChatInput(
+                    "",
+                    id="chat-input",
+                    language=None,
+                    tab_behavior="indent"
                 )
+                # Set a placeholder-like initial hint
+                text_area.show_line_numbers = False
+                yield text_area
 
         # Command palette (initially hidden)
         yield CommandPalette(id="command-palette")
@@ -460,25 +505,53 @@ class DocPixieTUI(App):
         chat_log.write(panel)
         chat_log.write("\n")
 
-    async def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle input changes for command palette"""
-        user_input = event.value
-
-        if user_input.startswith("/"):
-            # Show command palette with current filter
-            command_palette = self.query_one("#command-palette", CommandPalette)
-            if not self.command_palette_active:
-                self.command_palette_active = True
-                command_palette.show(user_input)
-            else:
-                command_palette.update_filter(user_input)
-        else:
-            # Hide command palette if not a command
-            if self.command_palette_active:
+    async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Handle text area changes for command palette"""
+        if event.text_area.id != "chat-input":
+            return
+            
+        # Get the current line (where cursor is)
+        lines = event.text_area.text.split('\n')
+        if lines:
+            current_line = lines[-1] if lines else ""
+            
+            if current_line.startswith("/"):
+                # Show command palette with current filter
                 command_palette = self.query_one("#command-palette", CommandPalette)
+                if not self.command_palette_active:
+                    self.command_palette_active = True
+                    command_palette.show(current_line)
+                else:
+                    command_palette.update_filter(current_line)
+            else:
+                # Hide command palette if not a command
+                if self.command_palette_active:
+                    command_palette = self.query_one("#command-palette", CommandPalette)
+                    command_palette.hide()
+                    self.command_palette_active = False
+
+    async def submit_chat_message(self) -> None:
+        """Submit the chat message from the TextArea"""
+        if self.command_palette_active:
+            # If command palette is active, select the current command instead
+            command_palette = self.query_one("#command-palette", CommandPalette)
+            selected_command = command_palette.select_current_command()
+            if selected_command:
                 command_palette.hide()
                 self.command_palette_active = False
-
+                text_area = self.query_one("#chat-input", ChatInput)
+                text_area.clear()
+                await self.handle_command(selected_command)
+            return
+            
+        text_area = self.query_one("#chat-input", ChatInput)
+        user_input = text_area.text.strip()
+        
+        if user_input:
+            # Submit the text
+            await self.submit_text(user_input)
+            text_area.clear()
+    
     async def on_key(self, event: events.Key) -> None:
         """Handle key events for command palette navigation"""
         if self.command_palette_active:
@@ -488,8 +561,8 @@ class DocPixieTUI(App):
                 command_palette.hide()
                 self.command_palette_active = False
                 # Clear the slash from input
-                input_widget = self.query_one("#chat-input", Input)
-                input_widget.value = ""
+                text_area = self.query_one("#chat-input", ChatInput)
+                text_area.clear()
                 event.prevent_default()
 
             elif event.key == "up":
@@ -504,9 +577,10 @@ class DocPixieTUI(App):
                 # Auto-complete with selected command
                 selected = command_palette.get_selected_command()
                 if selected:
-                    input_widget = self.query_one("#chat-input", Input)
-                    input_widget.value = selected.command
-                    input_widget.cursor_position = len(selected.command)
+                    text_area = self.query_one("#chat-input", ChatInput)
+                    text_area.text = selected.command
+                    # Move cursor to end
+                    text_area.cursor_location = (0, len(selected.command))
                 event.prevent_default()
 
             elif event.key == "enter":
@@ -516,20 +590,18 @@ class DocPixieTUI(App):
                     command_palette.hide()
                     self.command_palette_active = False
                     # Clear input and execute
-                    input_widget = self.query_one("#chat-input", Input)
-                    input_widget.value = ""
+                    text_area = self.query_one("#chat-input", ChatInput)
+                    text_area.clear()
                     await self.handle_command(selected_command)
                 event.prevent_default()
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle input submission"""
+    async def submit_text(self, user_input: str) -> None:
+        """Handle text submission from TextArea"""
         if self.processing:
             return
-
-        input_widget = self.query_one("#chat-input", Input)
+            
         chat_log = self.query_one("#chat-log", RichLog)
-
-        user_input = event.value.strip()
+        
         if not user_input:
             return
 
@@ -538,9 +610,6 @@ class DocPixieTUI(App):
             command_palette = self.query_one("#command-palette", CommandPalette)
             command_palette.hide()
             self.command_palette_active = False
-
-        # Clear input
-        input_widget.value = ""
 
         # Check for commands
         if user_input.startswith("/"):
@@ -563,17 +632,18 @@ class DocPixieTUI(App):
         self.command_palette_active = False
 
         # Clear input and execute command
-        input_widget = self.query_one("#chat-input", Input)
-        input_widget.value = ""
+        text_area = self.query_one("#chat-input", ChatInput)
+        text_area.clear()
 
         await self.handle_command(event.command)
 
     async def on_command_auto_complete(self, event: CommandAutoComplete) -> None:
         """Handle command auto-completion"""
         # Fill input with the command
-        input_widget = self.query_one("#chat-input", Input)
-        input_widget.value = event.command
-        input_widget.cursor_position = len(event.command)
+        text_area = self.query_one("#chat-input", ChatInput)
+        text_area.text = event.command
+        # Move cursor to end
+        text_area.cursor_location = (0, len(event.command))
 
     async def on_conversation_selected(self, event: ConversationSelected) -> None:
         """Handle conversation selection from dialog"""
@@ -923,7 +993,7 @@ class DocPixieTUI(App):
     def action_toggle_palette(self) -> None:
         """Toggle command palette"""
         command_palette = self.query_one("#command-palette", CommandPalette)
-        input_widget = self.query_one("#chat-input", Input)
+        text_area = self.query_one("#chat-input", ChatInput)
         
         if self.command_palette_active:
             command_palette.hide()
@@ -931,8 +1001,8 @@ class DocPixieTUI(App):
         else:
             command_palette.show("/")
             self.command_palette_active = True
-            input_widget.value = "/"
-            input_widget.cursor_position = 1
+            text_area.text = "/"
+            text_area.cursor_location = (0, 1)
 
 
 def main():
