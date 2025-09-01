@@ -600,12 +600,6 @@ class DocPixieTUI(App):
                         md = Markdown(msg.content)
                         assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
                         chat_log.write(assistant_panel)
-                        # Always show cost (default to 0)
-                        cost = getattr(msg, 'cost', 0.0) or 0.0
-                        if cost < 0.01:
-                            chat_log.write(f"[dim]💰 Cost: ${cost:.6f}[/dim]\n")
-                        else:
-                            chat_log.write(f"[dim]💰 Cost: ${cost:.4f}[/dim]\n")
 
                 # Update status bar
                 status_label = self.query_one("#status-label", Label)
