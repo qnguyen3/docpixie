@@ -282,12 +282,13 @@ class DocPixieTUI(App):
                 # Display conversation history
                 for msg in self.conversation_history:
                     if msg.role == "user":
-                        chat_log.write(f"[bold green]👤 You:[/bold green] {msg.content}\n")
+                        user_md = Markdown(msg.content)
+                        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
+                        chat_log.write(user_panel)
                     else:
-                        chat_log.write(f"[bold blue]🤖 Assistant:[/bold blue]\n")
                         md = Markdown(msg.content)
-                        chat_log.write(md)
-                        chat_log.write("\n")
+                        assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
+                        chat_log.write(assistant_panel)
                 
                 chat_log.write(f"[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
 
@@ -326,8 +327,6 @@ class DocPixieTUI(App):
                 if doc:
                     self.indexed_documents.append(doc)
 
-            if self.indexed_documents:
-                chat_log.write(f"📚 Loaded {len(self.indexed_documents)} indexed document(s) from storage\n")
         except Exception as e:
             indexed_names = set()
             chat_log.write(f"[dim]Note: Could not load existing documents: {e}[/dim]\n")
@@ -356,9 +355,6 @@ class DocPixieTUI(App):
                 self.documents_folder,
                 self.docpixie
             ))
-        else:
-            # All documents already indexed
-            chat_log.write(f"✅ All documents already indexed\n")
 
     async def load_or_create_conversation(self):
         """Load the last conversation or create a new one"""
@@ -529,8 +525,10 @@ class DocPixieTUI(App):
             await self.handle_command(user_input.lower())
             return
 
-        # Display user message
-        chat_log.write(f"[bold green]👤 You:[/bold green] {user_input}\n")
+        # Display user message in a bordered panel
+        user_md = Markdown(user_input)
+        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
+        chat_log.write(user_panel)
 
         # Process query
         await self.process_query(user_input)
@@ -587,12 +585,13 @@ class DocPixieTUI(App):
                 # Display conversation history
                 for msg in messages:
                     if msg.role == "user":
-                        chat_log.write(f"[bold green]👤 You:[/bold green] {msg.content}\n")
+                        user_md = Markdown(msg.content)
+                        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
+                        chat_log.write(user_panel)
                     else:
-                        chat_log.write(f"[bold blue]🤖 Assistant:[/bold blue]\n")
                         md = Markdown(msg.content)
-                        chat_log.write(md)
-                        chat_log.write("\n")
+                        assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
+                        chat_log.write(assistant_panel)
 
                 # Update status bar
                 status_label = self.query_one("#status-label", Label)
@@ -797,13 +796,10 @@ class DocPixieTUI(App):
                 task_callback
             )
 
-            # Display result
-            chat_log.write(f"\n[bold blue]🤖 Assistant:[/bold blue]\n")
-
-            # Use Rich Markdown for better formatting
+            # Display result in a bordered panel
             md = Markdown(result.answer)
-            chat_log.write(md)
-            chat_log.write("\n")
+            assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
+            chat_log.write(assistant_panel)
 
             # Add metadata if available
             if hasattr(result, 'page_numbers') and result.page_numbers:
