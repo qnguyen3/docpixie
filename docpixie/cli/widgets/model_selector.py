@@ -96,7 +96,7 @@ class ModelSelectorDialog(ModalScreen):
     }
 
     #current-selection {
-        height: 1;
+        height: 2;
         margin: 1 0;
     }
 
@@ -120,14 +120,11 @@ class ModelSelectorDialog(ModalScreen):
         self.config_manager = get_config_manager()
         self.current_text_model = self.config_manager.config.text_model
         self.current_vision_model = self.config_manager.config.vision_model
-
-        # Track which tab is active and cursor positions
         self.active_tab = "planning"
         self.planning_index = 0
         self.vision_index = 0
 
     def compose(self):
-        """Create the model selector dialog"""
         with Container(id="dialog-container"):
             yield Static("[bold]🤖 Model Configuration[/bold]", classes="title")
 
@@ -138,7 +135,7 @@ class ModelSelectorDialog(ModalScreen):
                         classes="tab-info"
                     )
                     list_view = ListView(id="planning-list")
-                    list_view.can_focus = False  # Disable focus
+                    list_view.can_focus = False
                     yield list_view
 
                 with TabPane("Vision Model", id="vision-tab"):
@@ -147,82 +144,61 @@ class ModelSelectorDialog(ModalScreen):
                         classes="tab-info"
                     )
                     list_view = ListView(id="vision-list")
-                    list_view.can_focus = False  # Disable focus
+                    list_view.can_focus = False
                     yield list_view
 
-            # Current selection display
             yield Static(id="current-selection", classes="info")
-            
-            # Control hints
             yield Static(
                 "[dim]↑↓[/dim] Navigate  [dim]←→[/dim] Switch Tab  [dim]Enter[/dim] Select  [dim]Esc[/dim] Cancel",
                 id="controls-hint"
             )
 
     async def on_mount(self):
-        """Load models when dialog mounts"""
-        await self._load_planning_models()
-        await self._load_vision_models()
+        await self._load_models("planning")
+        await self._load_models("vision")
         self._update_status_display()
-
-        # Set initial focus to the dialog itself
         self.focus()
 
-    async def _load_planning_models(self):
-        """Load and display planning models"""
-        list_view = self.query_one("#planning-list", ListView)
+    async def _load_models(self, model_type: str):
+        if model_type == "planning":
+            models = PLANNING_MODELS
+            current_model = self.current_text_model
+            list_id = "#planning-list"
+        else:
+            models = VISION_MODELS
+            current_model = self.current_vision_model
+            list_id = "#vision-list"
+
+        list_view = self.query_one(list_id, ListView)
         list_view.clear()
 
-        for i, model in enumerate(PLANNING_MODELS):
-            # Create model item with indicator for current model
-            if model == self.current_text_model:
-                model_display = f"[green bold]✓[/green bold] [bold]{model}[/bold] [dim](current)[/dim]"
-                # Set initial cursor to current model
-                self.planning_index = i
-            else:
-                model_display = f"  {model}"
-
-            list_item = ListItem(Label(model_display), classes="model-item")
-
-            # Mark current model with style
-            if model == self.current_text_model:
-                list_item.add_class("model-item-current")
-
+        for i, model in enumerate(models):
+            is_current = model == current_model
+            list_item = self._create_model_item(model, is_current)
             list_view.append(list_item)
+            
+            if is_current:
+                if model_type == "planning":
+                    self.planning_index = i
+                else:
+                    self.vision_index = i
 
-        # Set the cursor to the current model
-        list_view.index = self.planning_index
+        list_view.index = self.planning_index if model_type == "planning" else self.vision_index
 
-    async def _load_vision_models(self):
-        """Load and display vision models"""
-        list_view = self.query_one("#vision-list", ListView)
-        list_view.clear()
+    def _create_model_item(self, model: str, is_current: bool) -> ListItem:
+        if is_current:
+            model_display = f"[green bold]✓[/green bold] [bold]{model}[/bold] [dim](current)[/dim]"
+        else:
+            model_display = f"  {model}"
 
-        for i, model in enumerate(VISION_MODELS):
-            # Create model item with indicator for current model
-            if model == self.current_vision_model:
-                model_display = f"[green bold]✓[/green bold] [bold]{model}[/bold] [dim](current)[/dim]"
-                # Set initial cursor to current model
-                self.vision_index = i
-            else:
-                model_display = f"  {model}"
-
-            list_item = ListItem(Label(model_display), classes="model-item")
-
-            # Mark current model with style
-            if model == self.current_vision_model:
-                list_item.add_class("model-item-current")
-
-            list_view.append(list_item)
-
-        # Set the cursor to the current model
-        list_view.index = self.vision_index
+        list_item = ListItem(Label(model_display), classes="model-item")
+        if is_current:
+            list_item.add_class("model-item-current")
+        return list_item
 
     def _update_status_display(self):
-        """Update the current selection display"""
         selection_display = self.query_one("#current-selection", Static)
 
-        # Get the currently highlighted models based on active tab
         if self.active_tab == "planning":
             highlighted_text = PLANNING_MODELS[self.planning_index] if self.planning_index < len(PLANNING_MODELS) else self.current_text_model
             highlighted_vision = self.current_vision_model
@@ -230,165 +206,122 @@ class ModelSelectorDialog(ModalScreen):
             highlighted_text = self.current_text_model
             highlighted_vision = VISION_MODELS[self.vision_index] if self.vision_index < len(VISION_MODELS) else self.current_vision_model
 
-        # Format display with clear indication of what's selected
         text_display = f"[cyan]{highlighted_text}[/cyan]" if highlighted_text == self.current_text_model else f"[yellow]→ {highlighted_text}[/yellow]"
         vision_display = f"[magenta]{highlighted_vision}[/magenta]" if highlighted_vision == self.current_vision_model else f"[yellow]→ {highlighted_vision}[/yellow]"
 
-        # Show which tab is active
+        active_marker = "[bold]◄[/bold]"
         if self.active_tab == "planning":
-            display_text = f"[dim]Planning:[/dim] {text_display} [bold]◄[/bold] [dim]|[/dim] [dim]Vision:[/dim] {vision_display}"
+            display_text = f"[dim]Planning:[/dim] {text_display} {active_marker}\n[dim]Vision:[/dim]   {vision_display}"
         else:
-            display_text = f"[dim]Planning:[/dim] {text_display} [dim]|[/dim] [dim]Vision:[/dim] {vision_display} [bold]◄[/bold]"
+            display_text = f"[dim]Planning:[/dim] {text_display}\n[dim]Vision:[/dim]   {vision_display} {active_marker}"
 
         selection_display.update(display_text)
 
     async def _switch_and_save_model(self):
-        """Switch to the selected model immediately"""
         if self.active_tab == "planning":
-            if self.planning_index < len(PLANNING_MODELS):
-                new_model = PLANNING_MODELS[self.planning_index]
-                if new_model != self.current_text_model:
-                    # Send message with old and new models BEFORE updating config
+            models = PLANNING_MODELS
+            index = self.planning_index
+            current_model = self.current_text_model
+        else:
+            models = VISION_MODELS
+            index = self.vision_index
+            current_model = self.current_vision_model
+
+        if index < len(models):
+            new_model = models[index]
+            if new_model != current_model:
+                if self.active_tab == "planning":
                     self.post_message(ModelSelected(
                         new_model,
                         self.current_vision_model,
                         self.current_text_model,
                         self.current_vision_model
                     ))
-                    # Now update config
                     self.config_manager.set_models(
                         text_model=new_model,
                         vision_model=self.current_vision_model
                     )
-        else:
-            if self.vision_index < len(VISION_MODELS):
-                new_model = VISION_MODELS[self.vision_index]
-                if new_model != self.current_vision_model:
-                    # Send message with old and new models BEFORE updating config
+                else:
                     self.post_message(ModelSelected(
                         self.current_text_model,
                         new_model,
                         self.current_text_model,
                         self.current_vision_model
                     ))
-                    # Now update config
                     self.config_manager.set_models(
                         text_model=self.current_text_model,
                         vision_model=new_model
                     )
 
-        # Close dialog
         self.dismiss()
 
-    async def _switch_to_planning_tab(self):
-        """Switch to planning tab"""
-        self.active_tab = "planning"
+    async def _switch_tab(self, tab_name: str):
+        self.active_tab = tab_name
         tabs = self.query_one("#model-tabs", TabbedContent)
-        tabs.active = "planning-tab"
-
-        # Update planning list view cursor
-        planning_list = self.query_one("#planning-list", ListView)
-        planning_list.index = self.planning_index
-
-        self._update_status_display()
-
-    async def _switch_to_vision_tab(self):
-        """Switch to vision tab"""
-        self.active_tab = "vision"
-        tabs = self.query_one("#model-tabs", TabbedContent)
-        tabs.active = "vision-tab"
-
-        # Update vision list view cursor
-        vision_list = self.query_one("#vision-list", ListView)
-        vision_list.index = self.vision_index
-
+        tabs.active = f"{tab_name}-tab"
+        
+        list_id = f"#{tab_name}-list"
+        list_view = self.query_one(list_id, ListView)
+        list_view.index = self.planning_index if tab_name == "planning" else self.vision_index
+        
         self._update_status_display()
 
     async def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        """Handle tab switching from TabbedContent (e.g., mouse clicks on tabs)"""
         if event.tab.id == "planning-tab":
             self.active_tab = "planning"
-            # Ensure planning list has correct index
             list_view = self.query_one("#planning-list", ListView)
             list_view.index = self.planning_index
         elif event.tab.id == "vision-tab":
             self.active_tab = "vision"
-            # Ensure vision list has correct index
             list_view = self.query_one("#vision-list", ListView)
             list_view.index = self.vision_index
-
         self._update_status_display()
 
     async def on_key(self, event: events.Key) -> None:
-        """Handle all key events for the dialog"""
-        # Always prevent default to stop ListView from handling keys
         event.prevent_default()
         event.stop()
 
         if event.key == "escape":
             self.dismiss()
-
         elif event.key == "enter":
-            # Select current item and close
             await self._switch_and_save_model()
-
         elif event.key == "up":
-            # Move selection up in the active tab
-            if self.active_tab == "planning":
-                if self.planning_index > 0:
-                    self.planning_index -= 1
-                    list_view = self.query_one("#planning-list", ListView)
-                    list_view.index = self.planning_index
-                    self._update_status_display()
-            else:
-                if self.vision_index > 0:
-                    self.vision_index -= 1
-                    list_view = self.query_one("#vision-list", ListView)
-                    list_view.index = self.vision_index
-                    self._update_status_display()
-
+            self._move_selection(-1)
         elif event.key == "down":
-            # Move selection down in the active tab
-            if self.active_tab == "planning":
-                if self.planning_index < len(PLANNING_MODELS) - 1:
-                    self.planning_index += 1
-                    list_view = self.query_one("#planning-list", ListView)
-                    list_view.index = self.planning_index
-                    self._update_status_display()
-            else:
-                if self.vision_index < len(VISION_MODELS) - 1:
-                    self.vision_index += 1
-                    list_view = self.query_one("#vision-list", ListView)
-                    list_view.index = self.vision_index
-                    self._update_status_display()
-
+            self._move_selection(1)
         elif event.key in ["tab", "right"]:
-            # Switch to next tab
-            if self.active_tab == "planning":
-                await self._switch_to_vision_tab()
-            else:
-                await self._switch_to_planning_tab()
-
+            await self._switch_tab("vision" if self.active_tab == "planning" else "planning")
         elif event.key == "left":
-            # Switch to previous tab
-            if self.active_tab == "vision":
-                await self._switch_to_planning_tab()
+            await self._switch_tab("planning" if self.active_tab == "vision" else "vision")
+    
+    def _move_selection(self, direction: int):
+        if self.active_tab == "planning":
+            models = PLANNING_MODELS
+            current_index = self.planning_index
+        else:
+            models = VISION_MODELS
+            current_index = self.vision_index
+        
+        new_index = current_index + direction
+        if 0 <= new_index < len(models):
+            if self.active_tab == "planning":
+                self.planning_index = new_index
+                list_id = "#planning-list"
             else:
-                await self._switch_to_vision_tab()
+                self.vision_index = new_index
+                list_id = "#vision-list"
+            
+            list_view = self.query_one(list_id, ListView)
+            list_view.index = new_index
+            self._update_status_display()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle list item selection (double click or mouse selection)"""
-        # Update the appropriate index based on which list was clicked
         if event.list_view.id == "planning-list":
             self.planning_index = event.list_view.index
             self.active_tab = "planning"
-            # Make sure the tab is switched
-            await self._switch_to_planning_tab()
+            await self._switch_tab("planning")
         elif event.list_view.id == "vision-list":
             self.vision_index = event.list_view.index
             self.active_tab = "vision"
-            # Make sure the tab is switched
-            await self._switch_to_vision_tab()
-
-        # Select and close
+            await self._switch_tab("vision")
         await self._switch_and_save_model()
