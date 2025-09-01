@@ -102,31 +102,31 @@ class DocPixieTUI(App):
 
     #chat-log {
         height: 1fr;
-        border: solid #4a2c2c;
-        background: #2a1818;
+        border: solid #4a3344;
+        background: #2d1f2d;
         padding: 1;
     }
 
     #input-container {
         height: 3;
         padding: 0 1;
-        background: #2a1818;
+        background: #2d1f2d;
     }
 
     #prompt-indicator {
         width: 2;
         color: #ff99cc;
         padding: 0;
-        background: #2a1818;
+        background: #2d1f2d;
     }
 
     #chat-input {
-        background: #2a1818;
+        background: #2d1f2d;
     }
 
     #status-bar {
         height: 1;
-        background: #2a1818;
+        background: #2d1f2d;
         color: $text;
         padding: 0 1;
     }
