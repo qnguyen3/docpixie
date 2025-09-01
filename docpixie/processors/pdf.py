@@ -66,6 +66,11 @@ class PDFProcessor(BaseProcessor):
             document = self._create_document(file_path, pages, document_id)
             document.status = DocumentStatus.COMPLETED
             
+            # Update pages with document info
+            for page in document.pages:
+                page.document_name = document.name
+                page.document_id = document.id
+            
             logger.info(f"Successfully processed PDF: {len(pages)} pages")
             return document
             

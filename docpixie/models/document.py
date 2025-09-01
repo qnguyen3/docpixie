@@ -30,6 +30,8 @@ class Page:
     page_number: int
     image_path: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    document_name: Optional[str] = None
+    document_id: Optional[str] = None
     
     def __post_init__(self):
         """Validate page data"""
@@ -107,6 +109,21 @@ class QueryResult:
     def page_numbers(self) -> List[int]:
         """Page numbers used for the answer"""
         return [p.page_number for p in self.selected_pages]
+    
+    def get_pages_by_document(self) -> Dict[str, List[int]]:
+        """Get pages grouped by document name"""
+        pages_by_doc = {}
+        for page in self.selected_pages:
+            doc_name = page.document_name or "Unknown Document"
+            if doc_name not in pages_by_doc:
+                pages_by_doc[doc_name] = []
+            pages_by_doc[doc_name].append(page.page_number)
+        
+        # Sort page numbers within each document
+        for doc_name in pages_by_doc:
+            pages_by_doc[doc_name].sort()
+        
+        return pages_by_doc
 
 
 @dataclass

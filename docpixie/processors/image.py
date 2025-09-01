@@ -65,6 +65,11 @@ class ImageProcessor(BaseProcessor):
             document = self._create_document(file_path, [page], document_id)
             document.status = DocumentStatus.COMPLETED
             
+            # Update page with document info
+            for page in document.pages:
+                page.document_name = document.name
+                page.document_id = document.id
+            
             logger.info(f"Successfully processed image: {file_path}")
             return document
             

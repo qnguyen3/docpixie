@@ -133,7 +133,15 @@ class DocPixieCLI:
         output.append(f"\n🤖 Assistant: {result.answer}")
 
         # Add metadata if available
-        if result.page_numbers:
+        if hasattr(result, 'get_pages_by_document'):
+            pages_by_doc = result.get_pages_by_document()
+            if pages_by_doc:
+                output.append("\n📄 Analyzed documents:")
+                for doc_name, page_nums in pages_by_doc.items():
+                    pages_str = ", ".join(str(p) for p in page_nums)
+                    output.append(f"  • {doc_name}: Pages {pages_str}")
+        elif result.page_numbers:
+            # Fallback to old format if method not available
             output.append(f"\n📄 Analyzed pages: {result.page_numbers}")
 
         if result.confidence > 0:

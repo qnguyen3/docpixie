@@ -810,7 +810,15 @@ class DocPixieTUI(App):
             chat_log.write(assistant_panel)
 
             # Add metadata if available
-            if hasattr(result, 'page_numbers') and result.page_numbers:
+            if hasattr(result, 'get_pages_by_document'):
+                pages_by_doc = result.get_pages_by_document()
+                if pages_by_doc:
+                    chat_log.write("[dim]📄 Analyzed documents:[/dim]\n")
+                    for doc_name, page_nums in pages_by_doc.items():
+                        pages_str = ", ".join(str(p) for p in page_nums)
+                        chat_log.write(f"[dim]  • {doc_name}: Pages {pages_str}[/dim]\n")
+            elif hasattr(result, 'page_numbers') and result.page_numbers:
+                # Fallback to old format if method not available
                 chat_log.write(f"[dim]📄 Analyzed pages: {result.page_numbers}[/dim]\n")
 
             if hasattr(result, 'processing_time') and result.processing_time > 0:
