@@ -337,7 +337,6 @@ class DocPixieTUI(App):
             chat_log.write(f"📄 Found {len(new_pdf_files)} new PDF file(s)\n")
             # Show document manager for user to select which ones to index
             await self.push_screen(DocumentManagerDialog(
-                self.indexed_documents, 
                 self.documents_folder,
                 self.docpixie
             ))
@@ -620,19 +619,15 @@ class DocPixieTUI(App):
         """Handle document removal"""
         chat_log = self.query_one("#chat-log", RichLog)
         
-        # Remove documents from indexed list
         removed_count = 0
         for doc_id in event.document_ids:
-            # Find and remove document
             for doc in self.indexed_documents[:]:
                 if doc.id == doc_id:
                     self.indexed_documents.remove(doc)
                     removed_count += 1
                     
-                    # Also remove from storage
                     if self.docpixie:
                         try:
-                            # Use the sync wrapper to delete from storage
                             success = self.docpixie.delete_document_sync(doc_id)
                             if not success:
                                 chat_log.write(f"[warning]Warning: Could not delete {doc.name} from storage[/warning]\n")
@@ -644,7 +639,6 @@ class DocPixieTUI(App):
         else:
             chat_log.write(f"[success]✅ Removed {removed_count} documents from index[/success]\n\n")
         
-        # Update status bar
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
 
@@ -652,10 +646,8 @@ class DocPixieTUI(App):
         """Handle documents being indexed"""
         chat_log = self.query_one("#chat-log", RichLog)
         
-        # Add documents to indexed list
         indexed_count = 0
         for doc in event.documents:
-            # Check if not already in list (avoid duplicates)
             if not any(existing.id == doc.id for existing in self.indexed_documents):
                 self.indexed_documents.append(doc)
                 indexed_count += 1
@@ -665,7 +657,6 @@ class DocPixieTUI(App):
         else:
             chat_log.write(f"[success]✅ Successfully indexed {indexed_count} documents[/success]\n\n")
         
-        # Update status bar
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
 
@@ -736,7 +727,6 @@ class DocPixieTUI(App):
         elif command == "/documents":
             # Show document manager dialog with all necessary parameters
             await self.push_screen(DocumentManagerDialog(
-                self.indexed_documents,
                 self.documents_folder,
                 self.docpixie
             ))

@@ -97,7 +97,6 @@ class IndexingConfirmDialog(ModalScreen):
         """Handle key events"""
         if event.key.lower() == "y":
             self.confirmed = True
-            # Trigger indexing in parent dialog
             if self.parent_dialog:
                 asyncio.create_task(self.parent_dialog._perform_indexing_confirmed())
             self.dismiss()
@@ -146,8 +145,8 @@ class DeletionConfirmDialog(ModalScreen):
         super().__init__()
         self.document_count = document_count
         self.confirmed = False
-        self.document_ids = []  # Will be set by parent dialog
-        self.parent_dialog = None  # Reference to parent DocumentManagerDialog
+        self.document_ids = []
+        self.parent_dialog = None
 
     def compose(self):
         """Create the confirmation dialog"""
@@ -173,7 +172,7 @@ class DeletionConfirmDialog(ModalScreen):
             self.confirmed = True
             if self.document_ids and self.parent_dialog:
                 self.app.post_message(DocumentRemoved(self.document_ids))
-                # Update dialog directly without message
+                # Update dialog UI immediately
                 asyncio.create_task(self.parent_dialog._update_after_removal(self.document_ids))
             self.dismiss()
         elif event.key.lower() == "n" or event.key == "escape":
@@ -274,18 +273,16 @@ class DocumentManagerDialog(ModalScreen):
     }
     """
 
-    def __init__(self, indexed_documents: List[Document], documents_folder: Path, docpixie=None):
+    def __init__(self, documents_folder: Path, docpixie=None):
         super().__init__()
-        self.indexed_documents = indexed_documents.copy()  # Make a copy to avoid shared reference issues
         self.documents_folder = documents_folder
         self.docpixie = docpixie
-        self.selected_items: Set[str] = set()  # PDF names or doc IDs
+        self.selected_items: Set[str] = set()
         self.document_items: List[ListItem] = []
         self.focused_index = 0
         self.indexing = False
-        self.pending_index_files: List[Path] = []  # Files pending indexing confirmation
+        self.pending_index_files: List[Path] = []
         
-        # Will be populated with all PDFs and their status
         self.all_items: List[Dict] = []
 
     def compose(self):
@@ -327,13 +324,10 @@ class DocumentManagerDialog(ModalScreen):
 
     def _scan_and_load_documents(self):
         """Scan folder for PDFs and match with indexed documents"""
-        # Clear the all_items list
         self.all_items = []
         
-        # Create a map of indexed documents by name
-        indexed_map = {doc.name: doc for doc in self.indexed_documents}
+        indexed_map = {doc.name: doc for doc in self.app.indexed_documents}
         
-        # Scan for all PDF files
         if self.documents_folder.exists():
             pdf_files = sorted(self.documents_folder.glob("*.pdf"))
             
@@ -347,7 +341,6 @@ class DocumentManagerDialog(ModalScreen):
                 }
                 self.all_items.append(item)
         
-        # Load the display
         self._load_document_list()
 
     def _load_document_list(self):
@@ -520,7 +513,6 @@ class DocumentManagerDialog(ModalScreen):
                     break
         
         if indexed_to_remove:
-            # Show confirmation dialog
             confirm_dialog = DeletionConfirmDialog(len(indexed_to_remove))
             confirm_dialog.document_ids = indexed_to_remove
             confirm_dialog.parent_dialog = self
@@ -644,14 +636,14 @@ class DocumentManagerDialog(ModalScreen):
                         )
                         indexed_docs.append(document)
                         
-                        # Update the item in our list immediately after indexing
+                        # Update the item immediately
                         for item in self.all_items:
                             if item['name'] == document.name:
                                 item['is_indexed'] = True
                                 item['document'] = document
                                 break
                         
-                        # Refresh the display to show the newly indexed document
+                        # Refresh display for this item
                         self._refresh_specific_item(document.name)
                         self._update_title()
                         
@@ -678,32 +670,12 @@ class DocumentManagerDialog(ModalScreen):
         
         self.indexing = False
         
-        # Send message about indexed documents
         if indexed_docs:
-            self.post_message(DocumentsIndexed(indexed_docs))
+            self.app.post_message(DocumentsIndexed(indexed_docs))
             
-            # Update our local data
-            for doc in indexed_docs:
-                # Add to indexed_documents list
-                if not any(d.id == doc.id for d in self.indexed_documents):
-                    self.indexed_documents.append(doc)
-                
-                # Find the item and mark it as indexed
-                for item in self.all_items:
-                    if item['name'] == doc.name:
-                        item['is_indexed'] = True
-                        item['document'] = doc
-                        break
-            
-            # Clear selections for indexed items
             for doc in indexed_docs:
                 if doc.name in self.selected_items:
                     self.selected_items.remove(doc.name)
-            
-            # Refresh the display
-            self._load_document_list()
-            self._update_title()
-            self._update_selection_info()
 
     def _move_focus_up(self):
         """Move focus up"""
@@ -740,27 +712,24 @@ class DocumentManagerDialog(ModalScreen):
             await self._remove_selected()
 
     async def _update_after_removal(self, document_ids: List[str]) -> None:
-        """Update UI after documents are removed"""
-        await asyncio.sleep(0.1)  # Wait for app to process
-        
+        """Update UI immediately after document removal"""
         for doc_id in document_ids:
-            for doc in self.indexed_documents[:]:
-                if doc.id == doc_id:
-                    doc_name = doc.name
-                    self.indexed_documents.remove(doc)
-                    
-                    for item in self.all_items:
-                        if item['name'] == doc_name:
-                            item['is_indexed'] = False
-                            item['document'] = None
-                            break
-                    
-                    if doc_name in self.selected_items:
-                        self.selected_items.remove(doc_name)
-                    
-                    # Refresh just this item like we do for indexing
-                    self._refresh_specific_item(doc_name)
+            # Find document name from current items
+            doc_name = None
+            for item in self.all_items:
+                if item['is_indexed'] and item['document'] and item['document'].id == doc_id:
+                    doc_name = item['name']
+                    item['is_indexed'] = False
+                    item['document'] = None
                     break
+            
+            # Clear from selections
+            if doc_name and doc_name in self.selected_items:
+                self.selected_items.remove(doc_name)
+            
+            # Refresh the specific item
+            if doc_name:
+                self._refresh_specific_item(doc_name)
         
         self._update_title()
         self._update_selection_info()
