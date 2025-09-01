@@ -44,6 +44,9 @@ class ChatInput(TextArea):
     BINDINGS = [
         # Important: handle Shift+Enter before Enter so newline takes precedence
         Binding("shift+enter", "add_newline", "New line", priority=True),
+        # Common terminal fallbacks for newline when Shift+Enter isn't distinct
+        Binding("ctrl+j", "add_newline", "New line", priority=True),
+        Binding("meta+enter", "add_newline", "New line", priority=True),
         Binding("enter", "submit_message", "Submit", priority=True),
     ]
     
@@ -583,17 +586,8 @@ class DocPixieTUI(App):
                     text_area.cursor_location = (0, len(selected.command))
                 event.prevent_default()
 
-            elif event.key == "enter":
-                # Select command if palette is open
-                selected_command = command_palette.select_current_command()
-                if selected_command:
-                    command_palette.hide()
-                    self.command_palette_active = False
-                    # Clear input and execute
-                    text_area = self.query_one("#chat-input", ChatInput)
-                    text_area.clear()
-                    await self.handle_command(selected_command)
-                event.prevent_default()
+            # Do not handle Enter here. Let ChatInput's bindings
+            # manage Enter vs Shift+Enter (submit vs newline)
 
     async def submit_text(self, user_input: str) -> None:
         """Handle text submission from TextArea"""
