@@ -13,7 +13,7 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Header, Footer, Input, Static, RichLog, Button, Label, ProgressBar, TextArea
+from textual.widgets import Header, Footer, Input, Static, Button, Label, ProgressBar, TextArea
 from textual.screen import Screen, ModalScreen
 from textual.reactive import reactive
 from textual.message import Message
@@ -33,7 +33,8 @@ from .widgets import (
     CommandPalette, CommandSelected, CommandAutoComplete,
     ConversationManagerDialog, ConversationSelected, ConversationDeleted,
     ModelSelectorDialog, ModelSelected,
-    DocumentManagerDialog, DocumentRemoved, DocumentsIndexed
+    DocumentManagerDialog, DocumentRemoved, DocumentsIndexed,
+    ChatArea
 )
 
 
@@ -129,14 +130,8 @@ class DocPixieTUI(App):
     }
 
     #chat-log {
-        height: 1fr;
         border: solid #4a3344;
         background: #2d1f2d;
-        padding: 1;
-        min-height: 10;
-        scrollbar-background: #2d1f2d;
-        scrollbar-color: #ff99cc;
-        scrollbar-size: 1 1;
     }
 
     #input-container {
@@ -282,7 +277,7 @@ class DocPixieTUI(App):
         yield Header(show_clock=True)
 
         with Container(id="chat-container"):
-            yield RichLog(id="chat-log", wrap=True, markup=True, auto_scroll=True)
+            yield ChatArea(id="chat-log")
 
             with Horizontal(id="status-bar"):
                 yield Label(self.get_status_text(), id="status-label")
@@ -379,7 +374,7 @@ class DocPixieTUI(App):
         except Exception as e:
             # Only log error if we can access the chat log
             try:
-                chat_log = self.query_one("#chat-log", RichLog)
+                chat_log = self.query_one("#chat-log", ChatArea)
                 chat_log.write(f"[error]❌ Failed to create DocPixie instance: {e}[/error]")
             except:
                 pass  # Silently fail if UI not ready
@@ -387,7 +382,7 @@ class DocPixieTUI(App):
 
     async def initialize_docpixie(self, show_welcome: bool = True) -> None:
         """Full initialization of DocPixie on app start"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         # Create DocPixie instance
         if not await self.create_docpixie_instance():
@@ -407,20 +402,16 @@ class DocPixieTUI(App):
 
             # Display loaded conversation history after welcome message
             if self.current_conversation_id and self.conversation_history:
-                chat_log.write(f"[dim]━━━ Restored previous conversation ━━━[/dim]\n\n")
+                chat_log.add_static_text("[dim]━━━ Restored previous conversation ━━━[/dim]\n\n")
 
                 # Display conversation history
                 for msg in self.conversation_history:
                     if msg.role == "user":
-                        user_md = Markdown(msg.content)
-                        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
-                        chat_log.write(user_panel)
+                        chat_log.add_user_message(msg.content)
                     else:
-                        md = Markdown(msg.content)
-                        assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
-                        chat_log.write(assistant_panel)
+                        chat_log.add_assistant_message(msg.content)
 
-                chat_log.write(f"[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
+                chat_log.add_static_text("[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
 
         except Exception as e:
             chat_log.write(f"[error]❌ Failed to initialize: {e}[/error]")
@@ -434,7 +425,7 @@ class DocPixieTUI(App):
 
     async def check_and_prompt_for_documents(self) -> None:
         """Check for documents and prompt user to index them"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         # Create documents folder if it doesn't exist
         if not self.documents_folder.exists():
@@ -521,7 +512,7 @@ class DocPixieTUI(App):
 
     def show_welcome_message(self) -> None:
         """Display welcome message and instructions"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         from rich.panel import Panel
         from rich.align import Align
@@ -566,7 +557,7 @@ class DocPixieTUI(App):
         )
 
         chat_log.write(panel)
-        chat_log.write("\n")
+        chat_log.add_static_text("\n")
 
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Handle text area changes for command palette"""
@@ -654,7 +645,7 @@ class DocPixieTUI(App):
         if self.processing:
             return
 
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         if not user_input:
             return
@@ -670,10 +661,8 @@ class DocPixieTUI(App):
             await self.handle_command(user_input.lower())
             return
 
-        # Display user message in a bordered panel
-        user_md = Markdown(user_input)
-        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
-        chat_log.write(user_panel)
+        # Display user message using ChatArea method
+        chat_log.add_user_message(user_input)
 
         # Disable input while processing, then re-enable after
         self.set_chat_input_enabled(False)
@@ -726,7 +715,7 @@ class DocPixieTUI(App):
 
     async def on_conversation_selected(self, event: ConversationSelected) -> None:
         """Handle conversation selection from dialog"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         if event.conversation_id == "new":
             # Create new conversation (same as /new command)
@@ -756,13 +745,9 @@ class DocPixieTUI(App):
                 # Display conversation history
                 for msg in messages:
                     if msg.role == "user":
-                        user_md = Markdown(msg.content)
-                        user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
-                        chat_log.write(user_panel)
+                        chat_log.add_user_message(msg.content)
                     else:
-                        md = Markdown(msg.content)
-                        assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
-                        chat_log.write(assistant_panel)
+                        chat_log.add_assistant_message(msg.content)
 
                 # Update status bar
                 status_label = self.query_one("#status-label", Label)
@@ -778,12 +763,12 @@ class DocPixieTUI(App):
     async def on_conversation_deleted(self, event: ConversationDeleted) -> None:
         """Handle conversation deletion"""
         # Just show a confirmation message
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
         chat_log.write("[success]✅ Conversation deleted[/success]\n\n")
 
     async def on_model_selected(self, event: ModelSelected) -> None:
         """Handle model selection"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         # Check what changed using the old values from the event
         if event.old_text_model and event.text_model != event.old_text_model:
@@ -803,7 +788,7 @@ class DocPixieTUI(App):
 
     async def on_document_removed(self, event: DocumentRemoved) -> None:
         """Handle document removal"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         removed_count = 0
         for doc_id in event.document_ids:
@@ -830,7 +815,7 @@ class DocPixieTUI(App):
 
     async def on_documents_indexed(self, event: DocumentsIndexed) -> None:
         """Handle documents being indexed"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         indexed_count = 0
         for doc in event.documents:
@@ -848,7 +833,7 @@ class DocPixieTUI(App):
 
     async def handle_command(self, command: str) -> None:
         """Handle slash commands"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         if command == "/exit":
             # Save current conversation before exiting
@@ -935,7 +920,7 @@ class DocPixieTUI(App):
 
     async def process_query(self, query: str) -> None:
         """Process user query with DocPixie"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         if not self.docpixie:
             chat_log.write("[error]❌ DocPixie not initialized[/error]\n")
@@ -946,10 +931,11 @@ class DocPixieTUI(App):
             return
 
         self.processing = True
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         try:
-            chat_log.write("[dim]⏳ Processing query...[/dim]\n")
+            # Show reactive processing status
+            chat_log.show_processing_status()
 
             # Create task update callback
             async def task_callback(event_type: str, data: Any):
@@ -967,10 +953,11 @@ class DocPixieTUI(App):
                 task_callback
             )
 
-            # Display result in a bordered panel
-            md = Markdown(result.answer)
-            assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
-            chat_log.write(assistant_panel)
+            # Hide processing status and mark as done
+            chat_log.hide_processing_status(mark_done=True, final_text="Planning")
+
+            # Display result using ChatArea method
+            chat_log.add_assistant_message(result.answer)
 
             # Add metadata if available
             if hasattr(result, 'get_pages_by_document'):
@@ -1031,23 +1018,37 @@ class DocPixieTUI(App):
 
     def display_task_update(self, event_type: str, data: Any) -> None:
         """Display task plan updates"""
-        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log = self.query_one("#chat-log", ChatArea)
 
         if event_type == 'plan_created':
             plan = data
-            chat_log.write("\n[yellow]📋 Task Plan:[/yellow]\n")
-            for task in plan.tasks:
-                chat_log.write(f"  • {task.name}\n")
+            # Show plan using reactive method
+            chat_log.show_plan(plan)
+
+        elif event_type == 'plan_updated':
+            # Handle plan updates with completed tasks marked
+            plan = data['plan']
+            completed_tasks = data.get('completed_tasks', [])
+            chat_log.show_plan(plan, is_update=True, completed_tasks=completed_tasks)
 
         elif event_type == 'task_started':
             task = data['task']
-            chat_log.write(f"[yellow]🔄 {task.name}...[/yellow]\n")
+            # Extract task info for display
+            task_name = task.name if hasattr(task, 'name') else str(task)
+            
+            # Try to get pages count and document name from task
+            pages_count = getattr(task, 'pages_count', 1)  # Default to 1
+            doc_name = getattr(task, 'document_name', 'document')  # Default name
+            
+            # Show task progress with spinner
+            chat_log.show_task_progress(task_name, pages_count, doc_name)
 
         elif event_type == 'task_completed':
             task = data['task']
-            result = data.get('result', {})
-            pages = result.pages_analyzed if hasattr(result, 'pages_analyzed') else 0
-            chat_log.write(f"[green]✅ Completed ({pages} pages)[/green]\n")
+            task_name = task.name if hasattr(task, 'name') else str(task)
+            
+            # Mark task as done
+            chat_log.update_task_status(task_name, done=True)
 
     def action_quit(self) -> None:
         """Quit the application"""
