@@ -39,7 +39,7 @@ from .widgets import (
 
 class ChatInput(TextArea):
     """Custom TextArea for chat input with Enter to submit"""
-    
+
     # Override default TextArea bindings with priority
     BINDINGS = [
         # Important: handle Shift+Enter before Enter so newline takes precedence
@@ -49,13 +49,13 @@ class ChatInput(TextArea):
         Binding("meta+enter", "add_newline", "New line", priority=True),
         Binding("enter", "submit_message", "Submit", priority=True),
     ]
-    
+
     def action_submit_message(self) -> None:
         """Submit on Enter"""
         app = self.app
         if hasattr(app, 'submit_chat_message'):
             asyncio.create_task(app.submit_chat_message())
-    
+
     def action_add_newline(self) -> None:
         """Add a newline on Shift+Enter"""
         self.insert("\n")
@@ -169,46 +169,46 @@ class DocPixieTUI(App):
         scrollbar-color: #ff99cc;
         scrollbar-size: 1 1;
     }
-    
+
     #chat-input:focus {
         border: none;
     }
-    
+
     /* Override TextArea internal component backgrounds */
     #chat-input > .text-area--scrollbar {
         background: #2d1f2d;
     }
-    
+
     #chat-input > ScrollableContainer {
         background: #2d1f2d;
     }
-    
+
     ChatInput {
         background: #2d1f2d !important;
     }
-    
+
     ChatInput > .text-area--scrollbar {
         background: #2d1f2d;
     }
-    
+
     ChatInput .text-area--cursor-line {
         background: #2d1f2d;
     }
-    
+
     /* Target TextArea document and container but preserve cursor */
     #chat-input .text-area--document {
         background: #2d1f2d;
     }
-    
+
     #chat-input .text-area--selection {
         background: #4a3344;
     }
-    
+
     /* Cursor should remain visible - this comes last to override */
     #chat-input .text-area--cursor {
         background: #ff99cc;
     }
-    
+
     #input-hint {
         height: 1;
         color: #bda6b6;
@@ -216,7 +216,7 @@ class DocPixieTUI(App):
         padding: 0 1;
         margin: 0;
     }
-    
+
     #status-bar {
         height: 1;
         background: #2d1f2d;
@@ -292,13 +292,13 @@ class DocPixieTUI(App):
                 # Set a placeholder-like initial hint
                 text_area.show_line_numbers = False
                 yield text_area
-            
+
             # Control hints below the input
             yield Label(
-                "Press / for commands • Shift+Enter for new line",
+                "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel",
                 id="input-hint",
             )
-            
+
 
         # Command palette (initially hidden)
         yield CommandPalette(id="command-palette")
@@ -368,10 +368,10 @@ class DocPixieTUI(App):
 
             # Initialize DocPixie
             self.docpixie = DocPixie(config=config)
-            
+
             # Note: Documents are persisted in storage, no need to re-add them
             # They will be loaded from storage when needed
-            
+
             return True
         except Exception as e:
             # Only log error if we can access the chat log
@@ -401,11 +401,11 @@ class DocPixieTUI(App):
             # Show welcome message (only if requested)
             if show_welcome:
                 self.show_welcome_message()
-                
+
             # Display loaded conversation history after welcome message
             if self.current_conversation_id and self.conversation_history:
                 chat_log.write(f"[dim]━━━ Restored previous conversation ━━━[/dim]\n\n")
-                
+
                 # Display conversation history
                 for msg in self.conversation_history:
                     if msg.role == "user":
@@ -416,7 +416,7 @@ class DocPixieTUI(App):
                         md = Markdown(msg.content)
                         assistant_panel = Panel(md, border_style="blue", expand=True, padding=(0, 1))
                         chat_log.write(assistant_panel)
-                
+
                 chat_log.write(f"[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
 
         except Exception as e:
@@ -569,12 +569,12 @@ class DocPixieTUI(App):
         """Handle text area changes for command palette"""
         if event.text_area.id != "chat-input":
             return
-            
+
         # Get the current line (where cursor is)
         lines = event.text_area.text.split('\n')
         if lines:
             current_line = lines[-1] if lines else ""
-            
+
             if current_line.startswith("/"):
                 # Show command palette with current filter
                 command_palette = self.query_one("#command-palette", CommandPalette)
@@ -603,15 +603,15 @@ class DocPixieTUI(App):
                 text_area.clear()
                 await self.handle_command(selected_command)
             return
-            
+
         text_area = self.query_one("#chat-input", ChatInput)
         user_input = text_area.text.strip()
-        
+
         if user_input:
             # Submit the text
             await self.submit_text(user_input)
             text_area.clear()
-    
+
     async def on_key(self, event: events.Key) -> None:
         """Handle key events for command palette navigation"""
         if self.command_palette_active:
@@ -650,9 +650,9 @@ class DocPixieTUI(App):
         """Handle text submission from TextArea"""
         if self.processing:
             return
-            
+
         chat_log = self.query_one("#chat-log", RichLog)
-        
+
         if not user_input:
             return
 
@@ -756,7 +756,7 @@ class DocPixieTUI(App):
     async def on_model_selected(self, event: ModelSelected) -> None:
         """Handle model selection"""
         chat_log = self.query_one("#chat-log", RichLog)
-        
+
         # Check what changed using the old values from the event
         if event.old_text_model and event.text_model != event.old_text_model:
             chat_log.write(f"[green]✅ Planning model switched to {event.text_model}[/green]\n\n")
@@ -768,7 +768,7 @@ class DocPixieTUI(App):
             await self.switch_models()
         else:
             chat_log.write("[dim]No model changes made[/dim]\n\n")
-        
+
         # Update status bar
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
@@ -776,14 +776,14 @@ class DocPixieTUI(App):
     async def on_document_removed(self, event: DocumentRemoved) -> None:
         """Handle document removal"""
         chat_log = self.query_one("#chat-log", RichLog)
-        
+
         removed_count = 0
         for doc_id in event.document_ids:
             for doc in self.indexed_documents[:]:
                 if doc.id == doc_id:
                     self.indexed_documents.remove(doc)
                     removed_count += 1
-                    
+
                     if self.docpixie:
                         try:
                             success = self.docpixie.delete_document_sync(doc_id)
@@ -791,30 +791,30 @@ class DocPixieTUI(App):
                                 chat_log.write(f"[warning]Warning: Could not delete {doc.name} from storage[/warning]\n")
                         except Exception as e:
                             chat_log.write(f"[error]Error deleting {doc.name}: {e}[/error]\n")
-        
+
         if removed_count == 1:
             chat_log.write(f"[success]✅ Removed 1 document from index[/success]\n\n")
         else:
             chat_log.write(f"[success]✅ Removed {removed_count} documents from index[/success]\n\n")
-        
+
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
 
     async def on_documents_indexed(self, event: DocumentsIndexed) -> None:
         """Handle documents being indexed"""
         chat_log = self.query_one("#chat-log", RichLog)
-        
+
         indexed_count = 0
         for doc in event.documents:
             if not any(existing.id == doc.id for existing in self.indexed_documents):
                 self.indexed_documents.append(doc)
                 indexed_count += 1
-        
+
         if indexed_count == 1:
             chat_log.write(f"[success]✅ Successfully indexed 1 document[/success]\n\n")
         else:
             chat_log.write(f"[success]✅ Successfully indexed {indexed_count} documents[/success]\n\n")
-        
+
         status_label = self.query_one("#status-label", Label)
         status_label.update(self.get_status_text())
 
@@ -958,7 +958,7 @@ class DocPixieTUI(App):
 
             if hasattr(result, 'processing_time') and result.processing_time > 0:
                 chat_log.write(f"[dim]⏱️ Processing time: {result.processing_time:.2f}s[/dim]\n")
-            
+
             # Always display cost (default to 0 if not available)
             cost = getattr(result, 'total_cost', 0.0) or 0.0
             # Format based on size
@@ -974,7 +974,7 @@ class DocPixieTUI(App):
                 ConversationMessage(role="user", content=query)
             )
             self.conversation_history.append(
-                ConversationMessage(role="assistant", content=result.answer, 
+                ConversationMessage(role="assistant", content=result.answer,
                                   cost=getattr(result, 'total_cost', 0.0) or 0.0)
             )
 
@@ -1045,7 +1045,7 @@ class DocPixieTUI(App):
         """Toggle command palette"""
         command_palette = self.query_one("#command-palette", CommandPalette)
         text_area = self.query_one("#chat-input", ChatInput)
-        
+
         if self.command_palette_active:
             command_palette.hide()
             self.command_palette_active = False
