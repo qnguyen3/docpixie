@@ -206,10 +206,14 @@ class DocPixieTUI(
         ascii_art = Text()
         figlet_text = pyfiglet.figlet_format("DocPixie CLI", font="big")
 
-        # Define gradient colors (purple → pink)
+        # Define a pink-forward gradient (deep → light)
         colors = [
-            "dark_violet", "medium_violet_red", "magenta",
-            "orchid", "deep_pink1", "pink1"
+            "#ff4da6",  # deep pink
+            "#ff66b3",
+            "#ff80bf",
+            "#ff99cc",  # brand pink
+            "#ffb3d9",
+            "#ffcce6"   # light pink
         ]
 
         # Split into lines and apply gradient
@@ -250,8 +254,8 @@ class DocPixieTUI(
         # Create panel with the welcome message
         panel = Panel(
             Align.center(welcome_content),
-            title="[bold magenta]DocPixie[/bold magenta]",
-            border_style="bright_blue",
+            title="[bold #ff99cc]DocPixie[/]",
+            border_style="#ff99cc",
             padding=(1, 2),
             expand=False
         )

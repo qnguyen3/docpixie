@@ -573,7 +573,7 @@ class DocumentManagerDialog(ModalScreen):
                 
                 # Create display with current state
                 display_text = (
-                    f"[bold #ff99cc]{spinner}[/bold #ff99cc] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
+                    f"[bold #ff99cc]{spinner}[/] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
                     f"[#ff99cc]{state['bar_filled']}[/#ff99cc][dim]{state['bar_empty']}[/dim] {state['progress']}%"
                 )
                 
