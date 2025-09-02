@@ -173,6 +173,13 @@ class DocPixieTUI(
         """Initialize the app when mounted"""
         # Defer initialization to allow UI to render first
         self.set_timer(0.1, self.deferred_init)
+        # Ensure initial keyboard focus is on the chat input
+        try:
+            self.call_after_refresh(
+                lambda: self.query_one("#chat-input", ChatInput).focus()
+            )
+        except Exception:
+            pass
 
     async def deferred_init(self) -> None:
         """Deferred initialization to allow UI to render"""
@@ -337,6 +344,14 @@ class DocPixieTUI(
         # Update hint text to reflect state
         if enabled:
             hint.update(self.state_manager.default_input_hint)
+            # Return keyboard focus to the chat input after processing completes
+            try:
+                self.call_after_refresh(lambda: text_area.focus())
+            except Exception:
+                try:
+                    text_area.focus()
+                except Exception:
+                    pass
         else:
             hint.update("⏳ Agent is working… input disabled until response.")
 
