@@ -36,8 +36,8 @@ class DocPixieCommandPalette(Container):
         width: 80;
         height: auto;
         max-height: 15;
-        background: $panel;
-        border: solid $primary;
+        background: #2d1f2d;   /* match app background */
+        border: solid #ff99cc; /* brand pink border */
         padding: 1;
         align: center bottom;
     }
@@ -49,8 +49,8 @@ class DocPixieCommandPalette(Container):
     #command-list {
         height: auto;
         max-height: 12;
-        scrollbar-background: $panel;
-        scrollbar-color: $primary;
+        scrollbar-background: #2d1f2d;
+        scrollbar-color: #ff99cc; /* brand pink scrollbar */
     }
     
     .command-item {
@@ -59,18 +59,19 @@ class DocPixieCommandPalette(Container):
     }
     
     .command-item.--highlight {
-        background: $accent;
+        background: #4a3344;
         color: $text;
     }
     
     .command-item-selected {
-        background: $primary;
+        background: #4a3344;
+        border-left: thick #ff99cc;
         color: $text;
     }
     
     #filter-display {
-        background: $surface;
-        color: $text;
+        background: #2d1f2d;
+        color: #ff99cc;
         height: 1;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -155,7 +156,7 @@ class DocPixieCommandPalette(Container):
         for i, cmd in enumerate(self.filtered_commands):
             # Create rich text for the command item
             command_text = Text()
-            command_text.append(cmd.command, style="bold cyan")
+            command_text.append(cmd.command, style="bold #ff99cc")
             command_text.append(" - ", style="dim")
             command_text.append(cmd.description, style="white")
             

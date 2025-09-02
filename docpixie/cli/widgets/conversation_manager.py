@@ -121,8 +121,8 @@ class ConversationManagerDialog(ModalScreen):
         max-height: 35;
         min-height: 26;
         padding: 1;
-        background: $surface;
-        border: solid $primary;
+        background: #2d1f2d;
+        border: solid #ff99cc;
         overflow-y: auto;
     }
 
@@ -133,10 +133,10 @@ class ConversationManagerDialog(ModalScreen):
 
     #conversation-list {
         height: 20;
-        scrollbar-background: $panel;
-        scrollbar-color: $primary;
+        scrollbar-background: #2d1f2d;
+        scrollbar-color: #ff99cc;
         scrollbar-size: 1 1;
-        border: solid $accent;
+        border: solid #4a3344;
         padding: 1;
         margin: 0;
     }
@@ -145,7 +145,7 @@ class ConversationManagerDialog(ModalScreen):
         height: 20;
         align: center middle;
         color: $text-muted;
-        border: solid $accent;
+        border: solid #4a3344;
         padding: 1;
         margin: 0;
     }
@@ -157,13 +157,13 @@ class ConversationManagerDialog(ModalScreen):
     }
 
     .conversation-item.--highlight {
-        background: $primary;
+        background: #4a3344;
         color: $text;
     }
 
     .conversation-item-selected {
-        background: $success 30%;
-        border-left: thick $success;
+        background: #4a3344;
+        border-left: thick #ff99cc;
     }
 
     .conversation-item-current {

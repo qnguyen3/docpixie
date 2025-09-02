@@ -38,8 +38,8 @@ class ModelSelectorDialog(ModalScreen):
         max-height: 30;
         min-height: 24;
         padding: 1;
-        background: $surface;
-        border: solid $primary;
+        background: #2d1f2d;
+        border: solid #ff99cc;
         overflow-y: auto;
     }
 
@@ -55,10 +55,10 @@ class ModelSelectorDialog(ModalScreen):
 
     #planning-list, #vision-list {
         height: 10;
-        scrollbar-background: $panel;
-        scrollbar-color: $primary;
+        scrollbar-background: #2d1f2d;
+        scrollbar-color: #ff99cc;
         scrollbar-size: 1 1;
-        border: solid $accent;
+        border: solid #4a3344;
         padding: 1;
         margin: 0;
     }
@@ -70,13 +70,13 @@ class ModelSelectorDialog(ModalScreen):
     }
 
     .model-item.--highlight {
-        background: $primary;
+        background: #4a3344;
         color: $text;
     }
 
     .model-item-current {
-        background: $success 30%;
-        border-left: thick $success;
+        background: #4a3344;
+        border-left: thick #ff99cc;
     }
 
     #button-container {
