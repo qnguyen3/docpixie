@@ -78,7 +78,7 @@ class DeletionConfirmDialog(ModalScreen):
     def compose(self):
         """Create the confirmation dialog"""
         with Container(id="confirm-container"):
-            yield Static("[bold]⚠️ Confirm Deletion[/bold]", classes="confirm-title")
+            yield Static("[bold]Confirm Deletion[/bold]", classes="confirm-title")
 
             if self.conversation_count == 1:
                 message = "Are you sure you want to delete 1 conversation?"

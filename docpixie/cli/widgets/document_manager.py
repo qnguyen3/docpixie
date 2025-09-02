@@ -151,7 +151,7 @@ class DeletionConfirmDialog(ModalScreen):
     def compose(self):
         """Create the confirmation dialog"""
         with Container(id="confirm-container"):
-            yield Static("[bold]⚠️ Confirm Deletion[/bold]", classes="confirm-title")
+            yield Static("[bold]Confirm Deletion[/bold]", classes="confirm-title")
 
             if self.document_count == 1:
                 message = "Are you sure you want to delete 1 document?"
@@ -326,7 +326,7 @@ class DocumentManagerDialog(ModalScreen):
         """Scan folder for PDFs and match with indexed documents"""
         self.all_items = []
         
-        indexed_map = {doc.name: doc for doc in self.app.indexed_documents}
+        indexed_map = {doc.name: doc for doc in self.app.state_manager.indexed_documents}
         
         if self.documents_folder.exists():
             pdf_files = sorted(self.documents_folder.glob("*.pdf"))
@@ -417,7 +417,7 @@ class DocumentManagerDialog(ModalScreen):
         if item['is_indexed']:
             # For indexed documents
             doc = item['document']
-            display_text.append("✅ Indexed", style="green")
+            display_text.append("[green bold]●[/green bold] Indexed")
             display_text.append(" | ", style="dim")
             display_text.append(f"{doc.page_count} pages", style="dim")
         else:
@@ -658,7 +658,7 @@ class DocumentManagerDialog(ModalScreen):
         # Show 100% completion before hiding
         if indexed_docs:
             display_text = (
-                f"[bold green]✅[/bold green] Completed: Indexed {len(indexed_docs)} document(s)\n"
+                f"[green bold]●[/green bold] Completed: Indexed {len(indexed_docs)} document(s)\n"
                 f"[rgb(147,112,219)]{'█' * 30}[/rgb(147,112,219)] 100%"
             )
             progress_display.update(display_text)
