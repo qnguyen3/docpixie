@@ -180,8 +180,11 @@ class ChatArea(ScrollableContainer):
         
         self._scroll_to_latest()
     
-    def show_task_progress(self, task_name: str, pages_count: int, doc_name: str):
-        """Show task progress with spinner"""
+    def show_task_progress(self, task_name: str, pages_count: Optional[int], doc_name: str):
+        """Show task progress with spinner.
+        If pages_count is None or <= 0, show a generic verb (planning/cooking/...)
+        until we have the actual pages count.
+        """
         task_id = f"task_{task_name}"
         
         # Remove existing task widget if exists
@@ -221,7 +224,8 @@ class ChatArea(ScrollableContainer):
         self._scroll_to_latest()
         
         # Start spinner animation for this task
-        self._start_task_animation(task_id, task_name, pages_count, doc_name)
+        preparing = (pages_count is None) or (isinstance(pages_count, int) and pages_count <= 0)
+        self._start_task_animation(task_id, task_name, pages_count or 0, doc_name, preparing=preparing)
     
     def update_task_status(self, task_name: str, done: bool = False):
         """Update task status and mark as done if needed"""
@@ -321,14 +325,18 @@ class ChatArea(ScrollableContainer):
         task = asyncio.create_task(animate_processing())
         self.spinner_tasks["processing"] = task
     
-    def _start_task_animation(self, task_id: str, task_name: str, pages_count: int, doc_name: str):
-        """Start spinner animation for a specific task"""
+    def _start_task_animation(self, task_id: str, task_name: str, pages_count: int, doc_name: str, preparing: bool = False):
+        """Start spinner animation for a specific task.
+        When preparing=True, show rotating verbs until page count is known.
+        """
         task_widget = self.task_widgets.get(task_id)
         if not task_widget:
             return
         
         async def animate_task():
             spinner_index = 0
+            verb_timer = 0
+            verb_index = random.randint(0, len(self.STATUS_VERBS) - 1) if preparing else 0
             
             while task_id in self.task_widgets:
                 try:
@@ -336,10 +344,20 @@ class ChatArea(ScrollableContainer):
                     spinner = self.SPINNER_FRAMES[spinner_index % len(self.SPINNER_FRAMES)]
                     spinner_index += 1
                     
-                    # Create display text
                     display_text = Text()
                     display_text.append(f"{spinner} ", style="bold rgb(147,112,219)")
-                    display_text.append(f"Analyzing {pages_count} pages in {doc_name}", style="rgb(147,112,219)")
+
+                    if preparing:
+                        # Rotate status verb every ~2 seconds
+                        if verb_timer % 20 == 0:
+                            verb_index = random.randint(0, len(self.STATUS_VERBS) - 1)
+                        current_verb = self.STATUS_VERBS[verb_index]
+                        display_text.append(f"{current_verb.capitalize()}...", style="rgb(147,112,219)")
+                        verb_timer += 1
+                    else:
+                        # Use proper pluralization when analyzing
+                        unit = "page" if pages_count == 1 else "pages"
+                        display_text.append(f"Analyzing {pages_count} {unit} in {doc_name}", style="rgb(147,112,219)")
                     
                     task_widget.update(display_text)
                     await asyncio.sleep(0.1)

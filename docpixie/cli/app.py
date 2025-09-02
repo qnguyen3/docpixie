@@ -1068,12 +1068,40 @@ class DocPixieTUI(App):
             task = data['task']
             # Extract task info for display
             task_name = task.name if hasattr(task, 'name') else str(task)
-            
-            # Try to get pages count and document name from task
-            pages_count = getattr(task, 'pages_count', 1)  # Default to 1
-            doc_name = getattr(task, 'document_name', 'document')  # Default name
-            
-            # Show task progress with spinner
+
+            # Determine document name from indexed documents (like legacy CLI)
+            doc_name = 'document'
+            try:
+                task_doc_id = getattr(task, 'document', '')
+                if task_doc_id:
+                    doc = next((d for d in self.indexed_documents if d.id == task_doc_id), None)
+                    if doc and getattr(doc, 'name', None):
+                        doc_name = doc.name
+            except Exception:
+                pass
+
+            # Use no page count until pages are selected; show verbs instead
+            chat_log.show_task_progress(task_name, None, doc_name)
+
+        elif event_type == 'pages_selected':
+            # Update spinner to reflect selected page count and doc name
+            task = data['task']
+            page_numbers = data.get('page_numbers', [])
+
+            task_name = task.name if hasattr(task, 'name') else str(task)
+
+            # Determine document name like above
+            doc_name = 'document'
+            try:
+                task_doc_id = getattr(task, 'document', '')
+                if task_doc_id:
+                    doc = next((d for d in self.indexed_documents if d.id == task_doc_id), None)
+                    if doc and getattr(doc, 'name', None):
+                        doc_name = doc.name
+            except Exception:
+                pass
+
+            pages_count = len(page_numbers) if isinstance(page_numbers, (list, tuple)) else 0
             chat_log.show_task_progress(task_name, pages_count, doc_name)
 
         elif event_type == 'task_completed':
