@@ -950,8 +950,22 @@ class DocPixieTUI(App):
             chat_log.show_processing_status()
 
             # Create task update callback
+            # Note: query_sync runs in a background thread. We must marshal UI updates
+            # back to Textual's main thread using call_from_thread.
             async def task_callback(event_type: str, data: Any):
-                self.display_task_update(event_type, data)
+                def _update():
+                    try:
+                        self.display_task_update(event_type, data)
+                    except Exception:
+                        # Silently ignore UI update errors to avoid breaking background thread
+                        pass
+
+                try:
+                    # Schedule the UI update on the main thread
+                    self.call_from_thread(_update)
+                except Exception:
+                    # As a last resort, run inline (may still work if on main thread)
+                    _update()
 
             # Run query in executor to avoid blocking
             result = await asyncio.get_event_loop().run_in_executor(
@@ -1043,13 +1057,12 @@ class DocPixieTUI(App):
 
         elif event_type == 'plan_updated':
             # Handle plan updates with completed tasks marked
-            plan = data['plan']
+            # Agent sends the TaskPlan object directly, not a dict
+            plan = data
             # Update stored plan
             self.current_plan = plan
-            # Merge completed tasks from event with our tracked completed tasks
-            event_completed_tasks = data.get('completed_tasks', [])
-            all_completed_tasks = list(self.completed_tasks.union(set(event_completed_tasks)))
-            chat_log.show_plan(plan, is_update=True, completed_tasks=all_completed_tasks)
+            # Re-render plan using tasks we've tracked as completed
+            chat_log.show_plan(plan, is_update=True, completed_tasks=list(self.completed_tasks))
 
         elif event_type == 'task_started':
             task = data['task']
