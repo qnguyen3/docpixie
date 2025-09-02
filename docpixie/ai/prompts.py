@@ -57,12 +57,6 @@ If you do not have enough information to answer the user's query, please say so.
 Query: {query}
 """
 
-# REMOVED: TASK_PLANNING_PROMPT - No longer needed since we use vision-based page selection
-# instead of vector search vs page-specific retrieval strategies
-
-# REMOVED: TASK_QUERY_GENERATION_PROMPT - No longer needed since we use vision-based
-# page selection instead of generating search queries for vector/semantic search
-
 TASK_PROCESSING_PROMPT = """You are DocPixie, analyzing specific documents to complete a focused task as part of a larger analysis.
 
 CURRENT TASK: {task_description}
@@ -110,11 +104,6 @@ Answer the user's question now."""
 # =============================================================================
 
 ADAPTIVE_INITIAL_PLANNING_PROMPT = """You are creating an initial task plan for a document analysis query. Create the MINIMUM number of tasks (1-3) needed to gather distinct information to answer the user's question.
-
-QUERY: {query}
-
-AVAILABLE DOCUMENTS:
-{documents}
 
 TASK CREATION RULES:
 1. Create the FEWEST tasks possible - only create multiple tasks if they require fundamentally different information
@@ -220,24 +209,16 @@ Output:
   ]
 }}
 
+----------------
+User's query: {query}
+
+AVAILABLE DOCUMENTS:
+{documents}
+----------------
+
 Create your initial task plan now. Remember: use the MINIMUM number of tasks needed. Only create multiple tasks if they require fundamentally different information from different sources. Output only valid JSON and do not include any other text or even backticks like ```json, ONLY THE JSON."""
 
 ADAPTIVE_PLAN_UPDATE_PROMPT = """You are an adaptive agent updating your task plan based on new information. Analyze what you've learned and decide if you need to modify your remaining tasks.
-
-ORIGINAL QUERY: {original_query}
-
-AVAILABLE DOCUMENTS:
-{available_documents}
-
-CURRENT TASK PLAN STATUS:
-{current_plan_status}
-
-LATEST TASK COMPLETED:
-Task: {completed_task_name}
-Findings: {task_findings}
-
-PROGRESS SO FAR:
-{progress_summary}
 
 DECISION RULES:
 1. CONTINUE UNCHANGED: If you're on track and remaining tasks are still relevant
@@ -289,6 +270,23 @@ Option 4 - Modify tasks:
   ]
 }}
 
+----------------
+ORIGINAL QUERY: {original_query}
+
+AVAILABLE DOCUMENTS:
+{available_documents}
+
+CURRENT TASK PLAN STATUS:
+{current_plan_status}
+
+LATEST TASK COMPLETED:
+Task: {completed_task_name}
+Findings: {task_findings}
+
+PROGRESS SO FAR:
+{progress_summary}
+----------------
+
 Analyze your situation and decide what to do. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
 VISION_PAGE_SELECTION_PROMPT = """Analyze these document page images and select the most relevant pages for this query:
@@ -318,11 +316,6 @@ Output only valid JSON and do not include any other text or even backticks like 
 
 DOCUMENT_SELECTION_PROMPT = """You are a document selection assistant. Analyze the user's query and determine which documents are most likely to contain relevant information.
 
-USER QUERY: {query}
-
-AVAILABLE DOCUMENTS:
-{documents}
-
 SELECTION RULES:
 1. Select documents that are most likely to contain information relevant to the query
 2. Consider document titles, summaries, and content descriptions
@@ -342,6 +335,13 @@ Example:
   "reasoning": "These documents contain financial data relevant to the revenue question",
   "page_specific": null
 }}
+
+----------------
+USER QUERY: {query}
+
+AVAILABLE DOCUMENTS:
+{documents}
+----------------
 
 Analyze the documents and return your selection. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
@@ -392,14 +392,14 @@ Output:
   "reformulated_query": "Compare 2023 quarterly report with 2022"
 }}
 
-----------
+----------------
 CONVERSATION CONTEXT:
 {conversation_context}
 
 RECENT TOPICS: {recent_topics}
 
 CURRENT QUERY: {current_query}
-----------
+----------------
 
 Return a JSON object with the reformulated query. Output only valid JSON and do not include any other text or even backticks like ```json."""
 
@@ -427,8 +427,6 @@ Summary:"""
 SYSTEM_QUERY_CLASSIFIER = """You are a query classification expert. Always respond with valid JSON."""
 
 QUERY_CLASSIFICATION_PROMPT = """Analyze the user's query and determine if it needs document retrieval to answer.
-
-QUERY: {query}
 
 Think about whether this query requires searching through documents to provide a complete answer, or if it can be answered directly without documents.
 
@@ -469,5 +467,8 @@ Query: "Summarize the main findings"
   "reasoning": "This requires extracting and summarizing information from documents",
   "needs_documents": true
 }}
+----------------
+QUERY: {query}
+----------------
 
 Analyze the query and return only valid JSON and do not include any other text or even backticks like ```json."""
