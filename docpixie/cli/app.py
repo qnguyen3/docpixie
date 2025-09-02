@@ -134,13 +134,16 @@ class DocPixieTUI(App):
         background: #2d1f2d;
         padding: 1;
         min-height: 10;
+        scrollbar-background: #2d1f2d;
+        scrollbar-color: #ff99cc;
+        scrollbar-size: 1 1;
     }
 
     #input-container {
         height: auto;
         min-height: 3;
         max-height: 12;
-        padding: 0;
+        padding: 0 0 0 1;
         margin: 0;
         background: #2d1f2d;
         border: solid #ff99cc;
@@ -162,6 +165,9 @@ class DocPixieTUI(App):
         border: none;
         padding: 0;
         margin: 0;
+        scrollbar-background: #2d1f2d;
+        scrollbar-color: #ff99cc;
+        scrollbar-size: 1 1;
     }
     
     #chat-input:focus {
