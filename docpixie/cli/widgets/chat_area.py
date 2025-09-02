@@ -70,6 +70,10 @@ class ChatArea(ScrollableContainer):
         """Create the chat area layout"""
         yield self.content_container
     
+    async def on_unmount(self):
+        """Clean up tasks when widget is unmounted"""
+        self._stop_all_animations()
+    
     def add_user_message(self, content: str):
         """Add a user message to the chat"""
         user_md = Markdown(content)
@@ -139,13 +143,6 @@ class ChatArea(ScrollableContainer):
     
     def show_plan(self, plan_data: Any, is_update: bool = False, completed_tasks: Optional[List[str]] = None):
         """Show plan as a todo list"""
-        if is_update and self.current_plan_widget:
-            # Remove old plan widget for updates
-            try:
-                self.current_plan_widget.remove()
-            except:
-                pass
-        
         # Create plan content
         plan_text = Text()
         plan_text.append("Task Plan:\n", style="yellow bold")
@@ -172,9 +169,15 @@ class ChatArea(ScrollableContainer):
                 # Normal for incomplete tasks
                 plan_text.append(f"  {i}. {task_name}\n", style="white")
         
-        self.current_plan_widget = Static(plan_text, classes="task-update")
-        self.content_container.mount(self.current_plan_widget)
-        self.message_widgets.append(self.current_plan_widget)
+        if is_update and self.current_plan_widget:
+            # Update existing plan widget content instead of removing/recreating
+            self.current_plan_widget.update(plan_text)
+        else:
+            # Create new plan widget
+            self.current_plan_widget = Static(plan_text, classes="task-update")
+            self.content_container.mount(self.current_plan_widget)
+            self.message_widgets.append(self.current_plan_widget)
+        
         self._scroll_to_latest()
     
     def show_task_progress(self, task_name: str, pages_count: int, doc_name: str):
@@ -228,7 +231,12 @@ class ChatArea(ScrollableContainer):
             if done:
                 # Stop animation and mark as done
                 if task_id in self.spinner_tasks:
-                    self.spinner_tasks[task_id].cancel()
+                    try:
+                        task = self.spinner_tasks[task_id]
+                        if not task.done():
+                            task.cancel()
+                    except Exception:
+                        pass
                     del self.spinner_tasks[task_id]
                 
                 # Update to done status
@@ -346,13 +354,23 @@ class ChatArea(ScrollableContainer):
     def _stop_processing_animation(self):
         """Stop processing animation"""
         if "processing" in self.spinner_tasks:
-            self.spinner_tasks["processing"].cancel()
+            try:
+                task = self.spinner_tasks["processing"]
+                if not task.done():
+                    task.cancel()
+            except Exception:
+                pass
             del self.spinner_tasks["processing"]
     
     def _stop_all_animations(self):
         """Stop all animation tasks"""
         for task in self.spinner_tasks.values():
-            task.cancel()
+            try:
+                if not task.done():
+                    task.cancel()
+            except Exception:
+                # Ignore any errors during task cleanup
+                pass
         self.spinner_tasks.clear()
     
     def write(self, content):

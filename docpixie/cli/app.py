@@ -272,6 +272,10 @@ class DocPixieTUI(App):
             "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel"
         )
 
+        # Task plan tracking
+        self.current_plan: Optional[Any] = None
+        self.completed_tasks: set = set()
+
     def compose(self) -> ComposeResult:
         """Create the main UI layout"""
         yield Header(show_clock=True)
@@ -861,6 +865,10 @@ class DocPixieTUI(App):
             self.current_conversation_id = self.conversation_storage.create_new_conversation(doc_ids)
             self.conversation_history = []
 
+            # Clear task plan tracking
+            self.current_plan = None
+            self.completed_tasks.clear()
+
             # Update UI
             chat_log.clear()
             self.show_welcome_message()
@@ -871,6 +879,10 @@ class DocPixieTUI(App):
             status_label.update(self.get_status_text())
 
         elif command == "/clear":
+            # Clear task plan tracking when clearing chat
+            self.current_plan = None
+            self.completed_tasks.clear()
+            
             chat_log.clear()
             self.show_welcome_message()
 
@@ -1021,6 +1033,9 @@ class DocPixieTUI(App):
 
         if event_type == 'plan_created':
             plan = data
+            # Store the current plan and reset completed tasks
+            self.current_plan = plan
+            self.completed_tasks.clear()
             # Hide processing status and mark as done immediately when plan is created
             chat_log.hide_processing_status(mark_done=True, final_text="Planning")
             # Show plan using reactive method
@@ -1029,8 +1044,12 @@ class DocPixieTUI(App):
         elif event_type == 'plan_updated':
             # Handle plan updates with completed tasks marked
             plan = data['plan']
-            completed_tasks = data.get('completed_tasks', [])
-            chat_log.show_plan(plan, is_update=True, completed_tasks=completed_tasks)
+            # Update stored plan
+            self.current_plan = plan
+            # Merge completed tasks from event with our tracked completed tasks
+            event_completed_tasks = data.get('completed_tasks', [])
+            all_completed_tasks = list(self.completed_tasks.union(set(event_completed_tasks)))
+            chat_log.show_plan(plan, is_update=True, completed_tasks=all_completed_tasks)
 
         elif event_type == 'task_started':
             task = data['task']
@@ -1048,8 +1067,19 @@ class DocPixieTUI(App):
             task = data['task']
             task_name = task.name if hasattr(task, 'name') else str(task)
             
-            # Mark task as done
+            # Mark individual task as done
             chat_log.update_task_status(task_name, done=True)
+            
+            # Add to completed tasks tracking
+            self.completed_tasks.add(task_name)
+            
+            # Re-display the entire plan with completed task in strikethrough
+            if self.current_plan:
+                chat_log.show_plan(
+                    self.current_plan, 
+                    is_update=True, 
+                    completed_tasks=list(self.completed_tasks)
+                )
 
     def action_quit(self) -> None:
         """Quit the application"""
