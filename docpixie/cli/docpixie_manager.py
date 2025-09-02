@@ -20,13 +20,13 @@ if TYPE_CHECKING:
 
 class DocPixieManager:
     """Manages DocPixie instance and all related operations"""
-    
+
     def __init__(self, app: 'DocPixieTUI', state_manager: AppStateManager):
         self.app = app
         self.state_manager = state_manager
         self.config_manager = get_config_manager()
         self.docpixie: Optional[DocPixie] = None
-    
+
     async def create_docpixie_instance(self) -> bool:
         """Create or recreate DocPixie instance with current configuration.
         Returns True if successful, False otherwise."""
@@ -51,7 +51,7 @@ class DocPixieManager:
             self.docpixie = DocPixie(config=config)
             self.app.docpixie = self.docpixie
             return True
-            
+
         except Exception as e:
             try:
                 chat_log = self.app.query_one("#chat-log", ChatArea)
@@ -59,11 +59,11 @@ class DocPixieManager:
             except:
                 pass
             return False
-    
+
     async def initialize_docpixie(self, show_welcome: bool = True) -> None:
         """Full initialization of DocPixie on app start"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
-        
+
         if not await self.create_docpixie_instance():
             chat_log.write("[error]❌ No API key configured. Please restart and configure.[/error]")
             return
@@ -71,12 +71,12 @@ class DocPixieManager:
         try:
             await self.check_and_prompt_for_documents()
             await self.load_or_create_conversation()
-            
+
             if show_welcome:
                 self.app.show_welcome_message()
 
             if self.state_manager.current_conversation_id and self.state_manager.conversation_history:
-                chat_log.add_static_text("[dim]━━━ Restored previous conversation ━━━[/dim]\\n\\n")
+                chat_log.add_static_text("[dim]━━━ Restored previous conversation ━━━[/dim]\n\n")
 
                 for msg in self.state_manager.conversation_history:
                     if msg.role == "user":
@@ -84,15 +84,15 @@ class DocPixieManager:
                     else:
                         chat_log.add_assistant_message(msg.content)
 
-                chat_log.add_static_text("[dim]━━━ Continue your conversation below ━━━[/dim]\\n\\n")
+                chat_log.add_static_text("[dim]━━━ Continue your conversation below ━━━[/dim]\n\n")
 
         except Exception as e:
             chat_log.write(f"[error]❌ Failed to initialize: {e}[/error]")
-    
+
     async def switch_models(self) -> None:
         """Switch models without reloading documents or conversations"""
         await self.create_docpixie_instance()
-    
+
     async def check_and_prompt_for_documents(self) -> None:
         """Check for documents and prompt user to index them"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
@@ -127,7 +127,7 @@ class DocPixieManager:
             return
 
         new_pdf_files = [
-            pdf for pdf in pdf_files 
+            pdf for pdf in pdf_files
             if pdf.stem not in indexed_names
         ]
 
@@ -137,7 +137,7 @@ class DocPixieManager:
                 self.state_manager.documents_folder,
                 self.docpixie
             ))
-    
+
     async def load_or_create_conversation(self) -> None:
         """Load the last conversation or create a new one"""
         try:
@@ -157,7 +157,7 @@ class DocPixieManager:
         except Exception as e:
             print(f"Error loading conversation: {e}")
             self.state_manager.set_current_conversation(None)
-    
+
     async def process_query(self, query: str, task_callback: Optional[Callable] = None) -> None:
         """Process user query with DocPixie"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
@@ -227,7 +227,7 @@ class DocPixieManager:
             chat_log.write(f"[red bold]●[/red bold] Error: {e}\n\n")
         finally:
             self.state_manager.set_processing(False)
-    
+
     def delete_document_sync(self, document_id: str) -> bool:
         """Delete a document synchronously"""
         if self.docpixie:

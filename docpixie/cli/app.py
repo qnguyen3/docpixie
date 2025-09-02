@@ -21,6 +21,7 @@ from textual.timer import Timer
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
+import pyfiglet
 
 from docpixie import DocPixie, ConversationMessage
 from docpixie.core.config import DocPixieConfig
@@ -34,7 +35,7 @@ from .commands import CommandHandler
 from .docpixie_manager import DocPixieManager
 from .task_display import TaskDisplayManager
 from .event_handlers import (
-    CommandEventMixin, ConversationEventMixin, 
+    CommandEventMixin, ConversationEventMixin,
     ModelEventMixin, DocumentEventMixin
 )
 from .styles import SETUP_SCREEN_CSS, MAIN_APP_CSS
@@ -108,10 +109,10 @@ class SetupScreen(Screen):
 
 
 class DocPixieTUI(
-    App, 
-    CommandEventMixin, 
-    ConversationEventMixin, 
-    ModelEventMixin, 
+    App,
+    CommandEventMixin,
+    ConversationEventMixin,
+    ModelEventMixin,
     DocumentEventMixin
 ):
     """Main DocPixie Terminal UI Application"""
@@ -125,8 +126,6 @@ class DocPixieTUI(
         ("ctrl+o", "show_models", "Model Config"),
         ("ctrl+d", "show_documents", "Documents"),
         ("ctrl+slash", "toggle_palette", "Commands"),
-        # Convenience: copy selected text from chat log (macOS cmd+c)
-        ("meta+c", "screen.copy_text", "Copy Text"),
     ]
 
     def __init__(self):
@@ -196,14 +195,30 @@ class DocPixieTUI(
         from rich.align import Align
         from rich.text import Text
 
-        # Create colorful ASCII art
+        # Create colorful ASCII art using pyfiglet
         ascii_art = Text()
+        figlet_text = pyfiglet.figlet_format("DocPixie CLI", font="big")
 
-        ascii_art.append(" ____             ____  _      _          ____ _     ___\n", style="bold cyan")
-        ascii_art.append("|  _ \  ___   ___|  _ \(_)_  _(_) ___    / ___| |   |_ _|\n", style="bold magenta")
-        ascii_art.append("| | | |/ _ \ / __| |_) | \ \/ / |/ _ \  | |   | |    | |\n", style="bold cyan")
-        ascii_art.append("| |_| | (_) | (__|  __/| |>  <| |  __/  | |___| |___ | |\n", style="bold magenta")
-        ascii_art.append("|____/ \___/ \___|_|   |_/_/\_\_|\___|   \____|_____|___|\n", style="bold cyan")
+        # Define gradient colors (purple → pink)
+        colors = [
+            "dark_violet", "medium_violet_red", "magenta",
+            "orchid", "deep_pink1", "pink1"
+        ]
+
+        # Split into lines and apply gradient
+        lines = figlet_text.split("\n")
+        for line in lines:
+            if line.strip():  # Only process non-empty lines
+                colored_line = Text()
+                chars = list(line)
+                for i, char in enumerate(chars):
+                    if char != " " and char != "\n":  # Only color non-space characters
+                        color_index = (i * (len(colors) - 1)) // max(len(chars) - 1, 1)
+                        colored_line.append(char, style=colors[color_index] + " bold")
+                    else:
+                        colored_line.append(char)
+                ascii_art.append(colored_line)
+                ascii_art.append("\n")
 
         # Create welcome content
         welcome_content = Text()
@@ -299,7 +314,7 @@ class DocPixieTUI(
                     self.call_from_thread(_update)
                 except Exception:
                     _update()
-            
+
             await self.docpixie_manager.process_query(user_input, task_callback)
         finally:
             self.set_chat_input_enabled(True)
