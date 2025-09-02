@@ -310,8 +310,8 @@ class ChatArea(ScrollableContainer):
                     
                     # Create display text
                     display_text = Text()
-                    display_text.append(f"{spinner} ", style="bold rgb(147,112,219)")
-                    display_text.append(f"{current_verb.capitalize()}...", style="rgb(147,112,219)")
+                    display_text.append(f"{spinner} ", style="bold #ff99cc")
+                    display_text.append(f"{current_verb.capitalize()}...", style="#ff99cc")
                     
                     self.current_processing_widget.update(display_text)
                     verb_timer += 1
@@ -345,19 +345,19 @@ class ChatArea(ScrollableContainer):
                     spinner_index += 1
                     
                     display_text = Text()
-                    display_text.append(f"{spinner} ", style="bold rgb(147,112,219)")
+                    display_text.append(f"{spinner} ", style="bold #ff99cc")
 
                     if preparing:
                         # Rotate status verb every ~2 seconds
                         if verb_timer % 20 == 0:
                             verb_index = random.randint(0, len(self.STATUS_VERBS) - 1)
                         current_verb = self.STATUS_VERBS[verb_index]
-                        display_text.append(f"{current_verb.capitalize()}...", style="rgb(147,112,219)")
+                        display_text.append(f"{current_verb.capitalize()}...", style="#ff99cc")
                         verb_timer += 1
                     else:
                         # Use proper pluralization when analyzing
                         unit = "page" if pages_count == 1 else "pages"
-                        display_text.append(f"Analyzing {pages_count} {unit} in {doc_name}", style="rgb(147,112,219)")
+                        display_text.append(f"Analyzing {pages_count} {unit} in {doc_name}", style="#ff99cc")
                     
                     task_widget.update(display_text)
                     await asyncio.sleep(0.1)

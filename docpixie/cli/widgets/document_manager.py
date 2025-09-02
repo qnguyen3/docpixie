@@ -417,7 +417,9 @@ class DocumentManagerDialog(ModalScreen):
         if item['is_indexed']:
             # For indexed documents
             doc = item['document']
-            display_text.append("[green bold]●[/green bold] Indexed")
+            # Use styled segments instead of markup so Text renders correctly
+            display_text.append("● ", style="green bold")
+            display_text.append("Indexed")
             display_text.append(" | ", style="dim")
             display_text.append(f"{doc.page_count} pages", style="dim")
         else:
@@ -571,8 +573,8 @@ class DocumentManagerDialog(ModalScreen):
                 
                 # Create display with current state
                 display_text = (
-                    f"[bold rgb(147,112,219)]{spinner}[/bold rgb(147,112,219)] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
-                    f"[rgb(147,112,219)]{state['bar_filled']}[/rgb(147,112,219)][dim]{state['bar_empty']}[/dim] {state['progress']}%"
+                    f"[bold #ff99cc]{spinner}[/bold #ff99cc] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
+                    f"[#ff99cc]{state['bar_filled']}[/#ff99cc][dim]{state['bar_empty']}[/dim] {state['progress']}%"
                 )
                 
                 progress_display.update(display_text)
@@ -659,7 +661,7 @@ class DocumentManagerDialog(ModalScreen):
         if indexed_docs:
             display_text = (
                 f"[green bold]●[/green bold] Completed: Indexed {len(indexed_docs)} document(s)\n"
-                f"[rgb(147,112,219)]{'█' * 30}[/rgb(147,112,219)] 100%"
+                f"[#ff99cc]{'█' * 30}[/#ff99cc] 100%"
             )
             progress_display.update(display_text)
             await asyncio.sleep(0.5)  # Brief pause to show completion
