@@ -120,6 +120,7 @@ Return a JSON object with a "tasks" array. Each task should have:
 - "name": Short, clear task name
 - "description": Specific description of what single piece of information to find
 - "document": Single document ID that is most relevant for this task
+- Do not add ```json to your response under any circumstances
 
 EXAMPLE 1 (Single Task):
 Query: "What is the current CEO's name?"
@@ -358,6 +359,7 @@ IMPORTANT RULES:
 - Focus on what the user is asking NOW, not what they asked before
 - Only add context needed to understand references
 - Keep the query concise for optimal document search
+- Do not add ```json to your response under any circumstances
 
 EXAMPLES:
 
@@ -430,7 +432,7 @@ QUERY_CLASSIFICATION_PROMPT = """Analyze the user's query and determine if it ne
 
 Think about whether this query requires searching through documents to provide a complete answer, or if it can be answered directly without documents.
 
-OUTPUT FORMAT (JSON only):
+OUTPUT FORMAT:
 {{
   "reasoning": "Brief explanation of why this query does or doesn't need documents",
   "needs_documents": true/false
@@ -471,4 +473,4 @@ Query: "Summarize the main findings"
 QUERY: {query}
 ----------------
 
-Analyze the query and return only valid JSON and do not include any other text or even backticks like ```json."""
+Note: Do not add ```json to your response under any circumstances. Analyze and output only valid JSON."""

@@ -131,15 +131,11 @@ class VisionPageSelector:
             # Parse JSON response
             selection_data = json.loads(result.strip())
             selected_indices = selection_data.get("selected_pages", [])
-            # reasoning = selection_data.get("reasoning", "No reasoning provided")
 
-            # logger.debug(f"Vision model reasoning: {reasoning}")
-
-            # Convert 1-based indices to actual pages
             selected_pages = []
             for idx in selected_indices:
                 if isinstance(idx, int) and 1 <= idx <= len(all_pages):
-                    page = all_pages[idx - 1]  # Convert to 0-based index
+                    page = all_pages[idx - 1]
                     selected_pages.append(page)
                     logger.debug(f"Selected page {idx}: {page.image_path}")
 
@@ -154,5 +150,4 @@ class VisionPageSelector:
             logger.error(f"Failed to parse page selection JSON: {e}")
             logger.debug(f"Raw vision model response: {result}")
 
-            # Raise error instead of fallback - no artificial limits
             raise PageSelectionError(f"Failed to parse vision model page selection response: {e}, raw response: \n{result}")

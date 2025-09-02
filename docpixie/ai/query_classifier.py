@@ -53,7 +53,7 @@ class QueryClassifier:
 
             response = await self.provider.process_text_messages(
                 messages=messages_for_api,
-                max_tokens=450,
+                max_tokens=1024,
                 temperature=0.1
             )
 
@@ -74,7 +74,7 @@ class QueryClassifier:
 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse classification JSON: {response}")
-                raise QueryClassificationError(f"Invalid JSON response from classification: {e}. Raw response: {result}")
+                raise QueryClassificationError(f"Invalid JSON response from classification: {e}")
 
         except Exception as e:
             logger.error(f"Query classification failed: {e}")
