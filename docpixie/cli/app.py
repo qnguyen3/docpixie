@@ -953,8 +953,7 @@ class DocPixieTUI(App):
                 task_callback
             )
 
-            # Hide processing status and mark as done
-            chat_log.hide_processing_status(mark_done=True, final_text="Planning")
+            # Processing status already hidden when plan was created
 
             # Display result using ChatArea method
             chat_log.add_assistant_message(result.answer)
@@ -1022,6 +1021,8 @@ class DocPixieTUI(App):
 
         if event_type == 'plan_created':
             plan = data
+            # Hide processing status and mark as done immediately when plan is created
+            chat_log.hide_processing_status(mark_done=True, final_text="Planning")
             # Show plan using reactive method
             chat_log.show_plan(plan)
 
