@@ -246,12 +246,14 @@ class DocPixieTUI(App):
     """
 
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
+        ("ctrl+q", "quit", "Quit"),
         ("ctrl+n", "new_conversation", "New Conversation"),
         ("ctrl+l", "show_conversations", "Conversations"),
         ("ctrl+o", "show_models", "Model Config"),
         ("ctrl+d", "show_documents", "Documents"),
         ("ctrl+slash", "toggle_palette", "Commands"),
+        # Convenience: copy selected text from chat log (macOS cmd+c)
+        ("meta+c", "screen.copy_text", "Copy Text"),
     ]
 
     def __init__(self):
@@ -295,7 +297,7 @@ class DocPixieTUI(App):
 
             # Control hints below the input
             yield Label(
-                "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel",
+                "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel • Drag to select, Ctrl/Cmd+C: copy",
                 id="input-hint",
             )
 
