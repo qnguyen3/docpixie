@@ -272,6 +272,10 @@ class DocPixieTUI(App):
         # Command palette state
         self.command_palette_active = False
         self.partial_command = ""
+        # Default hint shown under the chat input
+        self.default_input_hint = (
+            "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel"
+        )
 
     def compose(self) -> ComposeResult:
         """Create the main UI layout"""
@@ -296,10 +300,7 @@ class DocPixieTUI(App):
                 yield text_area
 
             # Control hints below the input
-            yield Label(
-                "Press / for commands • Shift+Enter: new line • Shift+Tab: switch panel • Drag to select, Ctrl/Cmd+C: copy",
-                id="input-hint",
-            )
+            yield Label(self.default_input_hint, id="input-hint")
 
 
         # Command palette (initially hidden)
@@ -610,9 +611,9 @@ class DocPixieTUI(App):
         user_input = text_area.text.strip()
 
         if user_input:
-            # Submit the text
-            await self.submit_text(user_input)
+            # Clear immediately for better UX, then process
             text_area.clear()
+            await self.submit_text(user_input)
 
     async def on_key(self, event: events.Key) -> None:
         """Handle key events for command palette navigation"""
@@ -674,8 +675,33 @@ class DocPixieTUI(App):
         user_panel = Panel(user_md, border_style="green", expand=True, padding=(0, 1))
         chat_log.write(user_panel)
 
-        # Process query
-        await self.process_query(user_input)
+        # Disable input while processing, then re-enable after
+        self.set_chat_input_enabled(False)
+        try:
+            await self.process_query(user_input)
+        finally:
+            self.set_chat_input_enabled(True)
+
+    def set_chat_input_enabled(self, enabled: bool) -> None:
+        """Enable or disable the chat input and update hint text."""
+        try:
+            text_area = self.query_one("#chat-input", ChatInput)
+            hint = self.query_one("#input-hint", Label)
+        except Exception:
+            return
+
+        # Toggle disabled state
+        try:
+            text_area.disabled = not enabled
+        except Exception:
+            # Fallback if widget doesn't support disabled for some reason
+            pass
+
+        # Update hint text to reflect state
+        if enabled:
+            hint.update(self.default_input_hint)
+        else:
+            hint.update("⏳ Agent is working… input disabled until response.")
 
     async def on_command_selected(self, event: CommandSelected) -> None:
         """Handle command selection from palette"""
@@ -1045,6 +1071,8 @@ class DocPixieTUI(App):
 
     def action_toggle_palette(self) -> None:
         """Toggle command palette"""
+        if self.processing:
+            return
         command_palette = self.query_one("#command-palette", CommandPalette)
         text_area = self.query_one("#chat-input", ChatInput)
 
