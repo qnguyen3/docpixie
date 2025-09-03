@@ -95,7 +95,12 @@ class DocPixieManager:
         if not self.state_manager.documents_folder.exists():
             self.state_manager.documents_folder.mkdir(parents=True)
             chat_log.write(f"[green bold]●[/green bold] Created documents folder: {self.state_manager.documents_folder.absolute()}\n")
-            chat_log.write("[blue bold]●[/blue bold] Add PDF files to the documents folder and use /documents to manage them.\n")
+            chat_log.write("[blue bold]●[/blue bold] Add PDF files to the ./documents folder or use /documents to manage them.\n")
+            # Auto-open the Document Manager when the folder is first created
+            await self.app.push_screen(DocumentManagerDialog(
+                self.state_manager.documents_folder,
+                self.docpixie
+            ))
             return
 
         self.state_manager.clear_documents()
@@ -116,6 +121,11 @@ class DocPixieManager:
         pdf_files = list(self.state_manager.documents_folder.glob("*.pdf"))
 
         if not pdf_files:
+            # Auto-open the Document Manager when there are no PDFs yet
+            await self.app.push_screen(DocumentManagerDialog(
+                self.state_manager.documents_folder,
+                self.docpixie
+            ))
             return
 
         new_pdf_files = [
