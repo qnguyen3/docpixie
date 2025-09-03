@@ -1,12 +1,11 @@
 include README.md
 include LICENSE
 include requirements.txt
-include CLAUDE.md
 recursive-include docpixie *.py
-recursive-include docpixie py.typed
+include docpixie/py.typed
+recursive-include docs *.md
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude tests *
-recursive-exclude docs *
 recursive-exclude documents *
 recursive-exclude docpixie_data *

@@ -1,318 +1,486 @@
 # Getting Started with DocPixie
 
-Welcome to DocPixie! This guide will help you set up and start using DocPixie for multimodal document understanding.
+This guide will walk you through setting up DocPixie and provide detailed examples of how to use it effectively.
 
-## Installation
-
-### Prerequisites
+## 📋 Prerequisites
 
 - Python 3.8 or higher
-- pip or uv package manager
+- An API key from one of the supported providers:
+  - OpenAI API key (for GPT-4V)
+  - Anthropic API key (for Claude with vision)
+  - OpenRouter API key (for multiple model access)
 
-### Install Required Packages
+## 🚀 Installation
 
-```bash
-pip install pymupdf pillow openai anthropic
-```
-
-Or if you're using uv (recommended for faster installs):
-
-```bash
-uv pip install pymupdf pillow openai anthropic
-```
-
-### Set Up API Keys
-
-DocPixie requires an API key from at least one provider:
+### Method 1: Using pip
 
 ```bash
-# For OpenAI (GPT-4 Vision)
-export OPENAI_API_KEY="sk-..."
+# Install dependencies
+pip install -r requirements.txt
 
-# For Anthropic (Claude 3)
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# For OpenRouter (access to multiple models)
-export OPENROUTER_API_KEY="sk-or-..."
+# For CLI support
+pip install textual>=0.47.0 pyfiglet>=0.8.0
 ```
 
-## Your First DocPixie Application
+### Method 2: Using uv (Recommended)
 
-### Step 1: Initialize DocPixie
+```bash
+# Install uv if you haven't already
+pip install uv
 
-```python
-from docpixie import create_docpixie
-
-# Create a DocPixie instance with OpenAI
-pixie = create_docpixie(provider="openai")
-
-# Or with Anthropic
-pixie = create_docpixie(provider="anthropic")
-
-# Or with explicit API key
-pixie = create_docpixie(
-    provider="openai",
-    api_key="your-api-key-here"
-)
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
 ```
 
-### Step 2: Add Documents
+## 🔑 API Key Setup
 
-```python
-# Add a single document
-document = pixie.add_document_sync("report.pdf")
-print(f"Added: {document.name}")
-print(f"Pages: {document.page_count}")
-print(f"Summary: {document.summary[:200]}...")
+Set up your API key in your environment:
 
-# Add multiple documents
-docs = [
-    "presentation.pdf",
-    "research_paper.pdf",
-    "financial_report.pdf"
-]
+```bash
+# For OpenAI (default)
+export OPENAI_API_KEY="sk-your-openai-key-here"
 
-for doc_path in docs:
-    doc = pixie.add_document_sync(doc_path)
-    print(f"✓ Added {doc.name}")
+# For Anthropic Claude
+export ANTHROPIC_API_KEY="sk-ant-your-anthropic-key-here"
+
+# For OpenRouter (gives access to many models)
+export OPENROUTER_API_KEY="sk-or-your-openrouter-key-here"
 ```
 
-### Step 3: Query Your Documents
+Or create a `.env` file in your project root:
 
-```python
-# Simple question
-result = pixie.query_sync("What are the key findings?")
-print(result.answer)
-
-# See which pages were used
-print(f"Information from pages: {result.page_numbers}")
-
-# Check confidence score
-print(f"Confidence: {result.confidence:.2%}")
+```env
+OPENAI_API_KEY=sk-your-openai-key-here
+# ANTHROPIC_API_KEY=sk-ant-your-anthropic-key-here
+# OPENROUTER_API_KEY=sk-or-your-openrouter-key-here
 ```
 
-## Working with Conversations
+## 🏃‍♂️ Quick Start Examples
 
-DocPixie maintains context across conversations:
-
-```python
-from docpixie.models.agent import ConversationMessage
-
-# Build conversation history
-conversation = [
-    ConversationMessage(
-        role="user", 
-        content="What is the main topic of the document?"
-    ),
-    ConversationMessage(
-        role="assistant",
-        content="The main topic is renewable energy adoption..."
-    ),
-    ConversationMessage(
-        role="user",
-        content="What specific technologies are mentioned?"
-    ),
-    ConversationMessage(
-        role="assistant",
-        content="The document mentions solar panels, wind turbines..."
-    )
-]
-
-# Ask a follow-up question with context
-result = pixie.query_sync(
-    "How do these compare in terms of efficiency?",
-    conversation_history=conversation
-)
-
-print(result.answer)
-```
-
-## Async Operations
-
-For better performance with multiple operations:
+### Example 1: Basic Document Processing
 
 ```python
 import asyncio
-from docpixie import create_docpixie
+from docpixie import DocPixie
 
-async def process_documents():
-    pixie = create_docpixie(provider="openai")
+async def basic_example():
+    # Initialize DocPixie with default settings
+    docpixie = DocPixie()
     
-    # Add documents concurrently
-    docs = await asyncio.gather(
-        pixie.add_document("doc1.pdf"),
-        pixie.add_document("doc2.pdf"),
-        pixie.add_document("doc3.pdf")
+    # Add a PDF document
+    document = await docpixie.add_document("sample.pdf")
+    
+    print(f"✅ Added document: {document.name}")
+    print(f"📄 Pages: {document.page_count}")
+    print(f"📝 Summary: {document.summary}")
+    
+    # Ask a question
+    result = await docpixie.query("What are the main topics covered?")
+    
+    print(f"\n❓ Query: {result.query}")
+    print(f"💡 Answer: {result.answer}")
+    print(f"📖 Pages used: {result.page_numbers}")
+    print(f"💰 Cost: ${result.total_cost:.4f}")
+
+# Run the example
+asyncio.run(basic_example())
+```
+
+### Example 2: Multiple Documents with Conversation
+
+```python
+import asyncio
+from docpixie import DocPixie, ConversationMessage
+
+async def conversation_example():
+    docpixie = DocPixie()
+    
+    # Add multiple documents
+    doc1 = await docpixie.add_document("quarterly_report.pdf", document_name="Q3 Report")
+    doc2 = await docpixie.add_document("budget_analysis.pdf", document_name="Budget Analysis")
+    
+    print(f"Added documents: {doc1.name}, {doc2.name}")
+    
+    # Start a conversation
+    conversation = []
+    
+    # First query
+    result1 = await docpixie.query(
+        "What was the revenue in Q3?",
+        conversation_history=conversation
     )
     
-    print(f"Added {len(docs)} documents")
+    # Add to conversation history
+    conversation.append(ConversationMessage(role="user", content="What was the revenue in Q3?"))
+    conversation.append(ConversationMessage(role="assistant", content=result1.answer))
     
-    # Query the documents
-    result = await pixie.query(
-        "Compare the main points across all documents"
+    print(f"Q1: {result1.answer}")
+    
+    # Follow-up question with context
+    result2 = await docpixie.query(
+        "How does that compare to the budget?",
+        conversation_history=conversation
     )
     
-    return result
+    print(f"Q2: {result2.answer}")
 
-# Run async function
-result = asyncio.run(process_documents())
-print(result.answer)
+asyncio.run(conversation_example())
 ```
 
-## Managing Documents
-
-### List Documents
+### Example 3: Custom Configuration
 
 ```python
-# Get all documents
-documents = pixie.list_documents_sync()
+import asyncio
+from docpixie import DocPixie, DocPixieConfig
 
-for doc in documents:
-    print(f"- {doc['name']} ({doc['page_count']} pages)")
-    print(f"  ID: {doc['id']}")
-    print(f"  Summary: {doc['summary'][:100]}...")
+async def custom_config_example():
+    # Create custom configuration
+    config = DocPixieConfig(
+        provider="anthropic",  # Use Claude instead of GPT-4V
+        model="claude-3-opus-20240229",
+        vision_model="claude-3-opus-20240229",
+        max_pages_per_task=8,  # Analyze more pages per task
+        jpeg_quality=95,       # Higher quality images
+        storage_type="memory"  # Use in-memory storage
+    )
+    
+    docpixie = DocPixie(config=config)
+    
+    # Process document with custom settings
+    document = await docpixie.add_document("technical_manual.pdf")
+    
+    # Query with detailed analysis
+    result = await docpixie.query(
+        "Explain the technical specifications in detail",
+        max_pages=10
+    )
+    
+    print(f"Provider: {config.provider}")
+    print(f"Model: {config.model}")
+    print(f"Answer: {result.answer}")
+    
+    # Get system statistics
+    stats = docpixie.get_stats()
+    print(f"Statistics: {stats}")
+
+asyncio.run(custom_config_example())
 ```
 
-### Search Documents
+### Example 4: Document Management
 
 ```python
-# Search by name or summary content
-results = pixie.search_documents_sync("financial", limit=5)
+import asyncio
+from docpixie import DocPixie
 
-for doc in results:
-    print(f"Found: {doc['name']}")
+async def document_management_example():
+    docpixie = DocPixie()
+    
+    # Add documents
+    doc1 = await docpixie.add_document("report1.pdf")
+    doc2 = await docpixie.add_document("report2.pdf")
+    
+    # List all documents
+    documents = await docpixie.list_documents()
+    print("📚 Available documents:")
+    for doc in documents:
+        print(f"  - {doc['name']} ({doc['page_count']} pages)")
+    
+    # Search documents by content
+    search_results = await docpixie.search_documents("revenue analysis")
+    print(f"\n🔍 Search results for 'revenue analysis':")
+    for result in search_results:
+        print(f"  - {result['name']}: {result['summary'][:100]}...")
+    
+    # Get specific document
+    document = await docpixie.get_document(doc1.id)
+    if document:
+        print(f"\n📄 Document: {document.name}")
+        print(f"   Created: {document.created_at}")
+        print(f"   Status: {document.status}")
+    
+    # Delete a document
+    deleted = await docpixie.delete_document(doc2.id)
+    print(f"\n🗑️  Deleted {doc2.name}: {deleted}")
+
+asyncio.run(document_management_example())
 ```
 
-### Delete Documents
-
-```python
-# Delete by document ID
-success = pixie.delete_document_sync(document_id)
-if success:
-    print("Document deleted")
-```
-
-## Configuration Options
-
-### Custom Storage Path
-
-```python
-from docpixie import create_docpixie
-
-pixie = create_docpixie(
-    provider="openai",
-    storage_path="/path/to/my/documents"
-)
-```
-
-### In-Memory Storage (for Testing)
-
-```python
-from docpixie import create_memory_docpixie
-
-# No files saved to disk
-pixie = create_memory_docpixie(provider="openai")
-```
-
-### Advanced Configuration
+### Example 5: Synchronous API (Easier for Beginners)
 
 ```python
 from docpixie import DocPixie
-from docpixie.core.config import DocPixieConfig
 
-config = DocPixieConfig(
-    # Provider settings
-    provider="anthropic",
-    model="claude-3-opus-20240229",
+# Use the synchronous API - no async/await needed!
+def sync_example():
+    docpixie = DocPixie()
     
-    # Storage settings
-    storage_type="local",
-    local_storage_path="./data",
+    # Add document (sync)
+    document = docpixie.add_document_sync("sample.pdf")
+    print(f"Added: {document.name}")
     
-    # Processing settings
-    jpeg_quality=95,              # Higher quality images
-    pdf_render_scale=2.5,         # Higher resolution
+    # Query document (sync)
+    result = docpixie.query_sync("What are the key points?")
+    print(f"Answer: {result.answer}")
     
-    # Agent settings
-    max_pages_per_task=10,        # More pages per analysis
-    max_agent_iterations=7,       # More planning iterations
-    
-    # Conversation settings
-    max_conversation_turns=10     # When to summarize history
-)
+    # List documents (sync)
+    docs = docpixie.list_documents_sync()
+    print(f"Total documents: {len(docs)}")
 
-pixie = DocPixie(config=config)
+# No asyncio.run() needed!
+sync_example()
 ```
 
-## Error Handling
+## 🛠️ Advanced Configuration
+
+### Provider-Specific Settings
 
 ```python
-from docpixie.exceptions import ProcessingError, StorageError
+from docpixie import DocPixie, DocPixieConfig
 
-try:
-    doc = pixie.add_document_sync("document.pdf")
-except ProcessingError as e:
-    print(f"Failed to process document: {e}")
-except StorageError as e:
-    print(f"Storage error: {e}")
+# OpenAI Configuration
+openai_config = DocPixieConfig(
+    provider="openai",
+    model="gpt-4o",
+    vision_model="gpt-4o",
+    max_agent_iterations=5
+)
 
-# Query with error handling
-try:
-    result = pixie.query_sync("What is the conclusion?")
-    if result.confidence < 0.5:
-        print("Warning: Low confidence answer")
-    print(result.answer)
-except Exception as e:
-    print(f"Query failed: {e}")
+# Anthropic Configuration  
+anthropic_config = DocPixieConfig(
+    provider="anthropic",
+    model="claude-3-opus-20240229",
+    vision_model="claude-3-opus-20240229",
+    max_agent_iterations=3
+)
+
+# OpenRouter Configuration (access to many models)
+openrouter_config = DocPixieConfig(
+    provider="openrouter",
+    model="openai/gpt-4o",
+    vision_model="openai/gpt-4o",
+    max_agent_iterations=4
+)
 ```
 
-## Best Practices
+### Storage Configuration
 
-### 1. Document Preparation
-- Ensure PDFs are not password-protected
-- Scanned documents work but native PDFs perform better
-- Large documents (100+ pages) may take longer to process
+```python
+# Local storage (default)
+local_config = DocPixieConfig(
+    storage_type="local",
+    local_storage_path="./my_docpixie_data"
+)
 
-### 2. Query Formulation
-- Be specific in your questions
-- Reference document sections when relevant
-- Use conversation history for complex analyses
+# In-memory storage (good for testing)
+memory_config = DocPixieConfig(
+    storage_type="memory"
+)
 
-### 3. Performance Tips
-- Use async operations for multiple documents
-- Configure appropriate page limits for your use case
-- Consider in-memory storage for temporary workflows
+# Custom storage backend
+from docpixie.storage.base import BaseStorage
 
-### 4. Cost Management
-- Each document processing uses vision API calls
-- Queries only analyze relevant pages
-- Monitor usage through provider dashboards
+class MyCustomStorage(BaseStorage):
+    # Implement your custom storage logic
+    pass
 
-## Next Steps
+docpixie = DocPixie(storage=MyCustomStorage())
+```
 
-- Explore [Document Processing](document-processing.md) to understand how different file types are handled
-- Learn about [Storage Options](storage.md) for production deployments
-- Review [Data Models](models.md) for advanced integrations
+### Image Processing Options
 
-## Troubleshooting
+```python
+config = DocPixieConfig(
+    pdf_render_scale=2.5,          # Higher scale = better quality
+    jpeg_quality=95,               # Image compression quality
+    vision_detail="high",          # Use full resolution
+    pdf_max_image_size=(1400, 1400)  # Maximum image dimensions
+)
+```
+
+## 🎨 Working with Different File Types
+
+### PDF Documents
+
+```python
+# Single PDF
+doc = await docpixie.add_document("report.pdf")
+
+# Multiple PDFs
+pdfs = ["report1.pdf", "report2.pdf", "report3.pdf"]
+documents = []
+for pdf in pdfs:
+    doc = await docpixie.add_document(pdf)
+    documents.append(doc)
+```
+
+### Images
+
+```python
+# Single image
+doc = await docpixie.add_document("chart.png")
+
+# Multiple images as one document
+from docpixie.models.document import Document, Page
+from pathlib import Path
+
+pages = []
+for i, img_path in enumerate(["page1.jpg", "page2.jpg"], 1):
+    page = Page(
+        page_number=i,
+        image_path=str(Path(img_path).absolute())
+    )
+    pages.append(page)
+
+document = Document(
+    id="multi-image-doc",
+    name="Multi-Image Document", 
+    pages=pages
+)
+
+# Save to storage
+await docpixie.storage.save_document(document)
+```
+
+## 💡 Best Practices
+
+### 1. Optimize for Your Use Case
+
+```python
+# For detailed analysis - use more pages and iterations
+detailed_config = DocPixieConfig(
+    max_pages_per_task=8,
+    max_agent_iterations=6,
+    jpeg_quality=95
+)
+
+# For quick summaries - use fewer pages
+quick_config = DocPixieConfig(
+    max_pages_per_task=4,
+    max_agent_iterations=3,
+    jpeg_quality=85
+)
+```
+
+### 2. Manage Conversation Context
+
+```python
+async def smart_conversation():
+    docpixie = DocPixie()
+    conversation = []
+    
+    while True:
+        user_input = input("Ask a question (or 'quit'): ")
+        if user_input.lower() == 'quit':
+            break
+            
+        result = await docpixie.query(user_input, conversation_history=conversation)
+        print(f"Answer: {result.answer}")
+        
+        # Add to conversation
+        conversation.append(ConversationMessage(role="user", content=user_input))
+        conversation.append(ConversationMessage(role="assistant", content=result.answer))
+        
+        # Keep conversation manageable (DocPixie handles this automatically)
+        if len(conversation) > 16:  # 8 turns
+            conversation = conversation[-10:]  # Keep recent 5 turns
+```
+
+### 3. Handle Errors Gracefully
+
+```python
+import asyncio
+from docpixie import DocPixie
+from docpixie.exceptions import DocPixieError
+
+async def robust_example():
+    try:
+        docpixie = DocPixie()
+        
+        # Try to add document
+        document = await docpixie.add_document("document.pdf")
+        
+        # Try to query
+        result = await docpixie.query("What is this document about?")
+        print(result.answer)
+        
+    except FileNotFoundError:
+        print("❌ Document file not found")
+    except DocPixieError as e:
+        print(f"❌ DocPixie error: {e}")
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+```
+
+### 4. Check File Support
+
+```python
+docpixie = DocPixie()
+
+# Check if file is supported
+if docpixie.supports_file("document.pdf"):
+    doc = await docpixie.add_document("document.pdf")
+else:
+    print("File type not supported")
+
+# See all supported extensions
+extensions = docpixie.get_supported_extensions()
+print(f"Supported types: {list(extensions.keys())}")
+```
+
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-**"No API key found"**
-- Ensure environment variable is set: `echo $OPENAI_API_KEY`
-- Or pass directly: `create_docpixie(api_key="...")`
+1. **API Key Not Found**
+   ```bash
+   # Make sure environment variable is set
+   echo $OPENAI_API_KEY
+   
+   # Or check in Python
+   import os
+   print(os.getenv('OPENAI_API_KEY'))
+   ```
 
-**"PDF processing failed"**
-- Check if PDF is corrupted: `file document.pdf`
-- Ensure PyMuPDF is installed: `pip show pymupdf`
+2. **File Not Found**
+   ```python
+   from pathlib import Path
+   
+   file_path = "document.pdf"
+   if Path(file_path).exists():
+       doc = await docpixie.add_document(file_path)
+   else:
+       print(f"File not found: {file_path}")
+   ```
 
-**"Low confidence answers"**
-- Document may not contain relevant information
-- Try more specific questions
-- Check if correct pages are being selected
+3. **Memory Issues with Large PDFs**
+   ```python
+   # Reduce image quality for large files
+   config = DocPixieConfig(
+       pdf_render_scale=1.5,  # Lower scale
+       jpeg_quality=80,       # Lower quality
+       pdf_max_image_size=(1000, 1000)
+   )
+   ```
 
-### Getting Help
+4. **Rate Limiting**
+   ```python
+   import asyncio
+   
+   # Add delays between requests
+   await docpixie.add_document("doc1.pdf")
+   await asyncio.sleep(1)  # 1 second delay
+   await docpixie.add_document("doc2.pdf")
+   ```
 
-- GitHub Issues: Report bugs or request features
-- Documentation: Check our full documentation
-- Community: Join our Discord for discussions
+## 🎯 Next Steps
+
+- Try the [CLI Tool](cli-tool.md) for interactive document chat
+- Explore the API reference in the source code
+- Build custom storage backends for your needs
+- Contribute to the project on GitHub
+
+---
+
+Happy document querying with DocPixie! 🎉

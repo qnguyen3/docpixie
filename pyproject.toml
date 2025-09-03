@@ -35,8 +35,6 @@ dependencies = [
     "textual>=0.47.0",
     "textual-dev>=1.3.0",
     "pyfiglet>=0.8.0",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
 ]
 
 [project.optional-dependencies]
@@ -48,16 +46,16 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/docpixie/docpixie"
-Documentation = "https://github.com/docpixie/docpixie#readme"
-Repository = "https://github.com/docpixie/docpixie.git"
-Issues = "https://github.com/docpixie/docpixie/issues"
+Homepage = "https://github.com/qnguyen3/docpixie"
+Documentation = "https://github.com/qnguyen3/docpixie#readme"
+Repository = "https://github.com/qnguyen3/docpixie.git"
+Issues = "https://github.com/qnguyen3/docpixie/issues"
 
 [project.scripts]
 docpixie = "docpixie.cli:main"
 
 [tool.setuptools]
-packages = ["docpixie", "docpixie.ai", "docpixie.core", "docpixie.models", "docpixie.processors", "docpixie.providers", "docpixie.storage", "docpixie.utils"]
+packages = ["docpixie", "docpixie.ai", "docpixie.cli", "docpixie.core", "docpixie.models", "docpixie.processors", "docpixie.providers", "docpixie.storage", "docpixie.utils"]
 
 [tool.setuptools.package-data]
 docpixie = ["py.typed"]

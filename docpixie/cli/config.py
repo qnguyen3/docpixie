@@ -35,7 +35,6 @@ VISION_MODELS = [
     "openai/gpt-4.1-mini",
     "openai/gpt-4.1-nano",
     "anthropic/claude-sonnet-4",
-    "minimax/minimax-01",
 ]
 
 

@@ -1,160 +1,186 @@
-# DocPixie 🧚‍♀️
+# DocPixie
 
-**Multimodal RAG Without the Complexity**
+A lightweight multimodal RAG (Retrieval-Augmented Generation) library that uses vision AI instead of traditional embeddings or vector databases. DocPixie processes documents as images and uses vision language models for both document understanding and intelligent page selection.
 
-DocPixie is a lightweight, vision-first RAG (Retrieval Augmented Generation) library that processes documents as images, eliminating the need for embeddings and vector databases. Built for developers who want powerful document understanding without the infrastructure overhead.
+## 🌟 Features
 
-## Why DocPixie?
+- **Vision-First Approach**: Documents processed as images using PyMuPDF, preserving visual information and formatting
+- **No Vector Database Required**: Eliminates the complexity of embeddings and vector storage
+- **Adaptive RAG Agent**: Single intelligent agent that dynamically plans tasks and selects relevant pages
+- **Multi-Provider Support**: Works with OpenAI GPT-4V, Anthropic Claude, and OpenRouter
+- **Modern CLI Interface**: Beautiful terminal UI built with Textual
+- **Conversation Aware**: Maintains context across multiple queries
+- **Pluggable Storage**: Local filesystem or in-memory storage backends
 
-Traditional RAG systems require:
-- Complex embedding pipelines
-- Vector databases (Pinecone, Weaviate, etc.)
-- Text extraction that loses visual context
-- Separate OCR for images and tables
-
-DocPixie simplifies everything:
-- **Vision-native**: Documents become images, preserving layout and visual elements
-- **No embeddings needed**: Vision models understand pages directly
-- **Zero infrastructure**: Works with just local storage or S3
-- **Adaptive intelligence**: Dynamic task planning based on document content
-
-## Features
-
-- 📄 **Universal Document Support**: PDF, images, and extensible to any format
-- 👁️ **Vision-First RAG**: Analyzes actual page images, not extracted text
-- 🧠 **Adaptive Agent**: Dynamically plans and adjusts analysis strategy
-- 💬 **Conversation-Aware**: Maintains context across multi-turn interactions
-- 🚀 **Simple API**: Both async and sync interfaces
-- 🔌 **Multiple AI Providers**: OpenAI, Anthropic, OpenRouter support
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-pip install pymupdf pillow openai anthropic
+# Clone the repository
+git clone https://github.com/qnguyen3/docpixie.git
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or use uv (recommended)
+uv pip install -r requirements.txt
 ```
 
 ### Basic Usage
 
 ```python
-from docpixie import create_docpixie
-
-# Initialize with your preferred provider
-pixie = create_docpixie(
-    provider="openai",  # or "anthropic", "openrouter"
-    api_key="your-api-key"
-)
-
-# Add a document
-doc = pixie.add_document_sync("research_paper.pdf")
-print(f"Added document: {doc.name} with {doc.page_count} pages")
-
-# Ask questions
-result = pixie.query_sync(
-    "What are the main findings of this research?"
-)
-print(result.answer)
-
-# See which pages were analyzed
-print(f"Analyzed pages: {result.page_numbers}")
-```
-
-### Async Usage
-
-```python
 import asyncio
-from docpixie import create_docpixie
+from docpixie import DocPixie
 
 async def main():
-    pixie = create_docpixie(provider="openai")
-    
-    # Add document
-    doc = await pixie.add_document("presentation.pdf")
-    
-    # Query with conversation history
-    from docpixie.models.agent import ConversationMessage
-    
-    history = [
-        ConversationMessage(role="user", content="What's the main topic?"),
-        ConversationMessage(role="assistant", content="The main topic is...")
-    ]
-    
-    result = await pixie.query(
-        "Can you elaborate on the methodology?",
-        conversation_history=history
-    )
-    
-    print(result.answer)
+    # Initialize with your API key
+    docpixie = DocPixie()
 
+    # Add a document
+    document = await docpixie.add_document("path/to/your/document.pdf")
+    print(f"Added document: {document.name}")
+
+    # Query the document
+    result = await docpixie.query("What are the key findings?")
+    print(f"Answer: {result.answer}")
+    print(f"Pages used: {result.page_numbers}")
+
+# Run the example
 asyncio.run(main())
 ```
 
-## How It Works
+### Using the CLI
 
-1. **Document Processing**: PDFs and images are converted to optimized JPEGs
-2. **Page Summarization**: Vision models analyze all pages to create document summaries
-3. **Adaptive Planning**: The agent creates focused tasks based on your query
-4. **Vision Selection**: Relevant pages are selected by analyzing actual images
-5. **Task Execution**: Each task analyzes specific pages to gather information
-6. **Response Synthesis**: All findings are combined into a comprehensive answer
+Start the interactive terminal interface:
 
-## Architecture Overview
-
-```
-DocPixie/
-├── Document Processing     # PDF → Image conversion
-├── Storage Layer          # Local, Memory, or S3
-├── AI Providers           # OpenAI, Anthropic, OpenRouter
-└── Adaptive RAG Agent     # Vision-based analysis
-    ├── Context Processor  # Conversation handling
-    ├── Task Planner      # Dynamic strategy
-    ├── Page Selector     # Vision-based selection
-    └── Synthesizer       # Response generation
+```bash
+python -m docpixie.cli
 ```
 
-## Configuration
+The CLI provides:
+- Interactive document chat
+- Document management
+- Conversation history
+- Model configuration
+- Command palette with shortcuts
+
+## 🛠️ Configuration
+
+DocPixie uses environment variables for API key configuration:
+
+```bash
+# For OpenAI (default)
+export OPENAI_API_KEY="your-openai-key"
+
+# For Anthropic Claude
+export ANTHROPIC_API_KEY="your-anthropic-key"
+
+# For OpenRouter (supports many models)
+export OPENROUTER_API_KEY="your-openrouter-key"
+```
+
+You can also specify the provider:
 
 ```python
-from docpixie import DocPixie
-from docpixie.core.config import DocPixieConfig
+from docpixie import DocPixie, DocPixieConfig
 
 config = DocPixieConfig(
-    provider="anthropic",
+    provider="anthropic",  # or "openai", "openrouter"
     model="claude-3-opus-20240229",
-    storage_type="local",
-    local_storage_path="./my_documents",
-    max_pages_per_task=8,
-    jpeg_quality=95
+    vision_model="claude-3-opus-20240229"
 )
 
-pixie = DocPixie(config=config)
+docpixie = DocPixie(config=config)
 ```
 
-## Documentation
+## 📚 Supported File Types
 
-- [Getting Started](docs/getting-started.md) - Installation and first steps
-- [Document Processing](docs/document-processing.md) - How documents are handled
-- [Storage Options](docs/storage.md) - Local, memory, and S3 backends
-- [Models & Providers](docs/models_and_providers.md) - AI models and provider configuration
+- **PDF files** (.pdf) - Full multipage support
+- More file types coming soon
 
-## Requirements
+## 🏗️ Architecture
 
-- Python 3.8+
-- PyMuPDF for PDF processing
-- PIL/Pillow for image optimization
-- OpenAI, Anthropic, or OpenRouter API key
+DocPixie uses a clean, modular architecture:
 
-## License
+```
+📁 Core Components
+├── 🧠 Adaptive RAG Agent - Dynamic task planning and execution
+├── 👁️  Vision Processing - Document-to-image conversion via PyMuPDF
+├── 🔌 Provider System - Unified interface for AI providers
+├── 💾 Storage Backends - Local filesystem or in-memory storage
+└── 🖥️  CLI Interface - Modern terminal UI with Textual
 
-MIT License - See LICENSE file for details
+📁 Processing Flow
+1. Document → Images (PyMuPDF)
+2. Vision-based summarization
+3. Adaptive query processing
+4. Intelligent page selection
+5. Response synthesis
+```
 
-## Contributing
+### Key Design Principles
 
-Contributions welcome! Please read our contributing guidelines before submitting PRs.
+- **Provider-Agnostic**: Generic model configuration works across all providers
+- **Image-Based Processing**: All documents converted to images, preserving visual context
+- **Business Logic Separation**: Raw API operations separate from workflow logic
+- **Adaptive Intelligence**: Single agent mode that dynamically adjusts based on findings
 
-## Support
+## 🎯 Use Cases
 
-- GitHub Issues: [Report bugs or request features](https://github.com/your-org/docpixie/issues)
-- Documentation: [Full documentation](https://docpixie.readthedocs.io)
-- Discord: [Join our community](https://discord.gg/docpixie)
+- **Research & Analysis**: Query academic papers, reports, and research documents
+- **Document Q&A**: Interactive questioning of PDFs, contracts, and manuals
+- **Content Discovery**: Find specific information across large document collections
+- **Visual Document Processing**: Handle documents with charts, diagrams, and complex layouts
+
+## 🔧 Development
+
+### Setup Development Environment
+
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest tests/ -v
+```
+
+## 🌍 Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key | None |
+| `ANTHROPIC_API_KEY` | Anthropic API key | None |
+| `OPENROUTER_API_KEY` | OpenRouter API key | None |
+| `DOCPIXIE_PROVIDER` | AI provider | `openai` |
+| `DOCPIXIE_STORAGE_PATH` | Storage directory | `./docpixie_data` |
+| `DOCPIXIE_JPEG_QUALITY` | Image quality (1-100) | `90` |
+
+## 📖 Documentation
+
+- [Getting Started Guide](docs/getting-started.md) - Detailed examples and tutorials
+- [CLI Tool Guide](docs/cli-tool.md) - Complete CLI documentation
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [PyMuPDF](https://pymupdf.readthedocs.io/) for PDF processing
+- CLI powered by [Textual](https://textual.textualize.io/)
+- Supports OpenAI, Anthropic, and OpenRouter APIs
+
+---

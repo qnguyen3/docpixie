@@ -4,32 +4,18 @@ DocPixie Textual CLI - Modern terminal interface for document chat
 """
 
 import asyncio
-import sys
-from pathlib import Path
-from typing import List, Optional, Any
-from datetime import datetime
+from typing import Optional, Any
 
-from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Header, Footer, Input, Static, Button, Label, ProgressBar, TextArea
-from textual.screen import Screen, ModalScreen
-from textual.reactive import reactive
-from textual.message import Message
-from textual.timer import Timer
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.text import Text
+from textual.containers import Container, Horizontal
+from textual.widgets import Header, Footer, Input, Static, Label, TextArea
+from textual.screen import Screen
 import pyfiglet
 
-from docpixie import DocPixie, ConversationMessage
-from docpixie.core.config import DocPixieConfig
-from docpixie.models.document import Document, QueryResult
-from docpixie.models.agent import TaskStatus
+from docpixie import DocPixie
 
 from .config import get_config_manager
-from .conversation_storage import ConversationStorage
 from .state_manager import AppStateManager
 from .commands import CommandHandler
 from .docpixie_manager import DocPixieManager
@@ -40,11 +26,7 @@ from .event_handlers import (
 )
 from .styles import SETUP_SCREEN_CSS, MAIN_APP_CSS
 from .widgets import (
-    CommandPalette, CommandSelected, CommandAutoComplete,
-    ConversationManagerDialog, ConversationSelected, ConversationDeleted,
-    ModelSelectorDialog, ModelSelected,
-    DocumentManagerDialog, DocumentRemoved, DocumentsIndexed,
-    ChatArea
+    CommandPalette, ChatArea
 )
 
 
