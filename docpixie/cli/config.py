@@ -22,6 +22,8 @@ PLANNING_MODELS = [
     "anthropic/claude-3.5-haiku",
     "qwen/qwen-plus",
     "qwen/qwen-max",
+    "deepseek/deepseek-chat-v3.1",
+    "mistralai/mistral-medium-3.1",
 ]
 
 VISION_MODELS = [

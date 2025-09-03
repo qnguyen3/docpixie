@@ -7,7 +7,7 @@ from textual import events
 from textual.widgets import TextArea, Label
 from .widgets import (
     CommandPalette, CommandSelected, CommandAutoComplete,
-    ConversationSelected, ConversationDeleted, 
+    ConversationSelected, ConversationDeleted,
     ModelSelected, DocumentRemoved, DocumentsIndexed,
     ChatArea
 )
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class CommandEventMixin:
     """Handles command palette and text input events"""
-    
+
     async def on_text_area_changed(self: 'DocPixieTUI', event: TextArea.Changed) -> None:
         """Handle text area changes for command palette"""
         if event.text_area.id != "chat-input":
@@ -107,7 +107,7 @@ class ConversationEventMixin:
                     (conv for conv in conversations if conv.id == event.conversation_id),
                     None
                 )
-                
+
                 chat_log.clear()
 
                 for msg in self.state_manager.conversation_history:
@@ -141,7 +141,7 @@ class ModelEventMixin:
         chat_log = self.query_one("#chat-log", ChatArea)
 
         if event.old_text_model and event.text_model != event.old_text_model:
-            chat_log.write(f"[green bold]●[/green bold] Planning model switched to {event.text_model}\n\n")
+            chat_log.write(f"[green bold]●[/green bold] Action model switched to {event.text_model}\n\n")
             await self.docpixie_manager.switch_models()
         elif event.old_vision_model and event.vision_model != event.old_vision_model:
             chat_log.write(f"[green bold]●[/green bold] Vision model switched to {event.vision_model}\n\n")

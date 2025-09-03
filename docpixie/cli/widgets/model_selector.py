@@ -129,7 +129,7 @@ class ModelSelectorDialog(ModalScreen):
             yield Static("[bold]🤖 Model Configuration[/bold]", classes="title")
 
             with TabbedContent(id="model-tabs"):
-                with TabPane("Planning Model", id="planning-tab"):
+                with TabPane("Action Model", id="planning-tab"):
                     yield Static(
                         "Select model for planning and text:",
                         classes="tab-info"
@@ -176,7 +176,7 @@ class ModelSelectorDialog(ModalScreen):
             is_current = model == current_model
             list_item = self._create_model_item(model, is_current)
             list_view.append(list_item)
-            
+
             if is_current:
                 if model_type == "planning":
                     self.planning_index = i
@@ -211,9 +211,9 @@ class ModelSelectorDialog(ModalScreen):
 
         active_marker = "[bold]◄[/bold]"
         if self.active_tab == "planning":
-            display_text = f"[dim]Planning:[/dim] {text_display} {active_marker}\n[dim]Vision:[/dim]   {vision_display}"
+            display_text = f"[dim]Action:[/dim] {text_display} {active_marker}\n[dim]Vision:[/dim]   {vision_display}"
         else:
-            display_text = f"[dim]Planning:[/dim] {text_display}\n[dim]Vision:[/dim]   {vision_display} {active_marker}"
+            display_text = f"[dim]Action:[/dim] {text_display}\n[dim]Vision:[/dim]   {vision_display} {active_marker}"
 
         selection_display.update(display_text)
 
@@ -259,11 +259,11 @@ class ModelSelectorDialog(ModalScreen):
         self.active_tab = tab_name
         tabs = self.query_one("#model-tabs", TabbedContent)
         tabs.active = f"{tab_name}-tab"
-        
+
         list_id = f"#{tab_name}-list"
         list_view = self.query_one(list_id, ListView)
         list_view.index = self.planning_index if tab_name == "planning" else self.vision_index
-        
+
         self._update_status_display()
 
     async def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
@@ -293,7 +293,7 @@ class ModelSelectorDialog(ModalScreen):
             await self._switch_tab("vision" if self.active_tab == "planning" else "planning")
         elif event.key == "left":
             await self._switch_tab("planning" if self.active_tab == "vision" else "vision")
-    
+
     def _move_selection(self, direction: int):
         if self.active_tab == "planning":
             models = PLANNING_MODELS
@@ -301,7 +301,7 @@ class ModelSelectorDialog(ModalScreen):
         else:
             models = VISION_MODELS
             current_index = self.vision_index
-        
+
         new_index = current_index + direction
         if 0 <= new_index < len(models):
             if self.active_tab == "planning":
@@ -310,7 +310,7 @@ class ModelSelectorDialog(ModalScreen):
             else:
                 self.vision_index = new_index
                 list_id = "#vision-list"
-            
+
             list_view = self.query_one(list_id, ListView)
             list_view.index = new_index
             self._update_status_display()
