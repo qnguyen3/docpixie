@@ -371,7 +371,7 @@ class DocumentManagerDialog(ModalScreen):
     #progress-container.visible {
         display: block;
     }
-    
+
     #progress-display {
         height: 2;
         color: $text;
@@ -400,7 +400,7 @@ class DocumentManagerDialog(ModalScreen):
         self.focused_index = 0
         self.indexing = False
         self.pending_index_files: List[Path] = []
-        
+
         self.all_items: List[Dict] = []
 
     def compose(self):
@@ -424,10 +424,10 @@ class DocumentManagerDialog(ModalScreen):
 
             # Selection info
             yield Static(id="selection-info", classes="info")
-            
+
             # Control hints
             yield Static(
-                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]A[/dim] Add PDF  [dim]R[/dim] Rename Focused  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from List (Unindexed only)  [dim]U[/dim] Unindex  [dim]Esc[/dim] Close",
+                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]A[/dim] Add PDF  [dim]R[/dim] Rename Focused  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from List  [dim]U[/dim] Unindex  [dim]Esc[/dim] Close",
                 id="controls-hint"
             )
 
@@ -436,19 +436,19 @@ class DocumentManagerDialog(ModalScreen):
         self._scan_and_load_documents()
         self._update_title()
         self._update_selection_info()
-        
+
         # Set initial focus to the dialog itself
         self.focus()
 
     def _scan_and_load_documents(self):
         """Scan folder for PDFs and match with indexed documents"""
         self.all_items = []
-        
+
         indexed_map = {doc.name: doc for doc in self.app.state_manager.indexed_documents}
-        
+
         if self.documents_folder.exists():
             pdf_files = sorted(self.documents_folder.glob("*.pdf"))
-            
+
             for pdf_file in pdf_files:
                 item = {
                     'name': pdf_file.stem,
@@ -458,7 +458,7 @@ class DocumentManagerDialog(ModalScreen):
                     'file_size': pdf_file.stat().st_size if pdf_file.exists() else 0
                 }
                 self.all_items.append(item)
-        
+
         self._load_document_list()
 
     def _load_document_list(self):
@@ -497,41 +497,41 @@ class DocumentManagerDialog(ModalScreen):
         if self.document_items:
             self.focused_index = 0
             self._highlight_focused()
-            
+
     def _update_title(self):
         """Update the title with document counts"""
         title = self.query_one("#title", Static)
         total = len(self.all_items)
         indexed = sum(1 for item in self.all_items if item['is_indexed'])
-        
+
         title.update(f"[bold]📚 Document Manager - Total: {total} docs ({indexed} indexed)[/bold]")
 
     def _create_item_content(self, item: Dict) -> Static:
         """Create content for a document item (indexed or unindexed)"""
         display_text = Text()
-        
+
         # Column 1: Selection checkbox (4 chars)
         if item['name'] in self.selected_items:
             display_text.append("[✓] ", style="green bold")
         else:
             display_text.append("[ ] ", style="dim")
-        
+
         # Column 2: Document name (35 chars fixed width to prevent wrapping)
         name_with_ext = f"{item['name']}.pdf"
         max_name_length = 35
-        
+
         if len(name_with_ext) > max_name_length:
             # Truncate with ellipsis
             truncated_name = name_with_ext[:max_name_length-3] + "..."
         else:
             # Pad with spaces to maintain alignment
             truncated_name = name_with_ext.ljust(max_name_length)
-        
+
         display_text.append(truncated_name, style="bold")
-        
+
         # Column 3: Status (right side)
         display_text.append("  ", style="dim")  # Spacing
-        
+
         if item['is_indexed']:
             # For indexed documents
             doc = item['document']
@@ -587,7 +587,7 @@ class DocumentManagerDialog(ModalScreen):
             # Replace content in the list item
             list_item.remove_children()
             list_item.mount(new_content)
-    
+
     def _refresh_specific_item(self, name: str):
         """Refresh a specific document item by name"""
         for index, item in enumerate(self.all_items):
@@ -615,7 +615,7 @@ class DocumentManagerDialog(ModalScreen):
                         else:
                             unindexed_count += 1
                         break
-            
+
             if count == 1:
                 info.update(f"[yellow]1 document selected[/yellow]")
             else:
@@ -631,7 +631,7 @@ class DocumentManagerDialog(ModalScreen):
                 if item['name'] == name and item['is_indexed']:
                     indexed_to_remove.append(item['document'].id)
                     break
-        
+
         if indexed_to_remove:
             confirm_dialog = DeletionConfirmDialog(len(indexed_to_remove))
             confirm_dialog.document_ids = indexed_to_remove
@@ -642,7 +642,7 @@ class DocumentManagerDialog(ModalScreen):
         """Index selected unindexed documents"""
         if self.indexing:
             return
-            
+
         # Get only unindexed documents that are selected
         to_index = []
         for name in self.selected_items:
@@ -650,16 +650,16 @@ class DocumentManagerDialog(ModalScreen):
                 if item['name'] == name and not item['is_indexed']:
                     to_index.append(item['pdf_path'])
                     break
-        
+
         if to_index:
             # Store the files to index
             self.pending_index_files = to_index
-            
+
             # Show confirmation dialog
             confirm_dialog = IndexingConfirmDialog(len(to_index))
             confirm_dialog.parent_dialog = self
             self.app.push_screen(confirm_dialog)
-    
+
     async def _perform_indexing_confirmed(self):
         """Perform indexing after confirmation"""
         if hasattr(self, 'pending_index_files') and self.pending_index_files:
@@ -667,46 +667,46 @@ class DocumentManagerDialog(ModalScreen):
             # Show progress container
             progress_container = self.query_one("#progress-container", Container)
             progress_container.add_class("visible")
-            
+
             # Start indexing
             await self._perform_indexing(self.pending_index_files)
-            
+
             # Clear pending files
             self.pending_index_files = []
-    
+
     async def _update_spinner_animation(self, stop_event: asyncio.Event):
         """Background task to update spinner animation smoothly"""
         progress_display = self.query_one("#progress-display", Static)
         spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         spinner_index = 0
-        
+
         while not stop_event.is_set():
             # Get current indexing state
             if hasattr(self, '_current_indexing_state'):
                 state = self._current_indexing_state
-                
+
                 # Update spinner
                 spinner = spinner_frames[spinner_index % len(spinner_frames)]
                 spinner_index += 1
-                
+
                 # Create display with current state
                 display_text = (
                     f"[bold #ff99cc]{spinner}[/] Indexing: {state['filename']} ({state['current']}/{state['total']})\n"
                     f"[#ff99cc]{state['bar_filled']}[/#ff99cc][dim]{state['bar_empty']}[/dim] {state['progress']}%"
                 )
-                
+
                 progress_display.update(display_text)
-            
+
             # Wait before next update
             await asyncio.sleep(0.1)
-    
+
     async def _perform_indexing(self, pdf_files: List[Path]):
         """Perform the actual indexing of documents"""
         progress_display = self.query_one("#progress-display", Static)
-        
+
         indexed_docs = []
         total = len(pdf_files)
-        
+
         # Initialize indexing state
         self._current_indexing_state = {
             'filename': 'Preparing...',
@@ -716,11 +716,11 @@ class DocumentManagerDialog(ModalScreen):
             'bar_filled': '',
             'bar_empty': '░' * 30
         }
-        
+
         # Start spinner animation task
         stop_spinner = asyncio.Event()
         spinner_task = asyncio.create_task(self._update_spinner_animation(stop_spinner))
-        
+
         try:
             for i, pdf_file in enumerate(pdf_files, 1):
                 try:
@@ -729,12 +729,12 @@ class DocumentManagerDialog(ModalScreen):
                     progress = int(completed / total * 100)
                     filled = int(progress / 100 * 30)
                     empty = 30 - filled
-                    
+
                     # Truncate filename
                     filename = pdf_file.name
                     if len(filename) > 25:
                         filename = filename[:22] + "..."
-                    
+
                     # Update shared state
                     self._current_indexing_state = {
                         'filename': filename,
@@ -744,7 +744,7 @@ class DocumentManagerDialog(ModalScreen):
                         'bar_filled': '█' * filled,
                         'bar_empty': '░' * empty
                     }
-                    
+
                     # Run sync method in executor
                     if self.docpixie:
                         document = await asyncio.get_event_loop().run_in_executor(
@@ -755,26 +755,26 @@ class DocumentManagerDialog(ModalScreen):
                             pdf_file.stem
                         )
                         indexed_docs.append(document)
-                        
+
                         # Update the item immediately
                         for item in self.all_items:
                             if item['name'] == document.name:
                                 item['is_indexed'] = True
                                 item['document'] = document
                                 break
-                        
+
                         # Refresh display for this item
                         self._refresh_specific_item(document.name)
                         self._update_title()
-                        
+
                 except Exception as e:
                     self.app.notify(f"Failed to index {pdf_file.name}: {e}", severity="error")
-        
+
         finally:
             # Stop spinner animation
             stop_spinner.set()
             await spinner_task
-        
+
         # Show 100% completion before hiding
         if indexed_docs:
             display_text = (
@@ -783,16 +783,16 @@ class DocumentManagerDialog(ModalScreen):
             )
             progress_display.update(display_text)
             await asyncio.sleep(0.5)  # Brief pause to show completion
-        
+
         # Hide progress container
         progress_container = self.query_one("#progress-container", Container)
         progress_container.remove_class("visible")
-        
+
         self.indexing = False
-        
+
         if indexed_docs:
             self.app.post_message(DocumentsIndexed(indexed_docs))
-            
+
             for doc in indexed_docs:
                 if doc.name in self.selected_items:
                     self.selected_items.remove(doc.name)
@@ -853,15 +853,15 @@ class DocumentManagerDialog(ModalScreen):
                     item['is_indexed'] = False
                     item['document'] = None
                     break
-            
+
             # Clear from selections
             if doc_name and doc_name in self.selected_items:
                 self.selected_items.remove(doc_name)
-            
+
             # Refresh the specific item
             if doc_name:
                 self._refresh_specific_item(doc_name)
-        
+
         self._update_title()
         self._update_selection_info()
 
@@ -945,7 +945,14 @@ class DocumentManagerDialog(ModalScreen):
         try:
             # Accept either a local file path or an arXiv URL
             s = path_str.strip()
-            if s.lower().startswith("http://") or s.lower().startswith("https://"):
+            ls = s.lower()
+            # Treat arXiv inputs even without scheme or with path-only forms
+            if (
+                ls.startswith("http://")
+                or ls.startswith("https://")
+                or ls.startswith("arxiv.org/")
+                or ls.startswith("www.arxiv.org/")
+            ):
                 ok, msg = await self._add_from_arxiv_url(s)
                 return ok, msg
 
@@ -1183,25 +1190,33 @@ class DocumentManagerDialog(ModalScreen):
             pass
 
     async def _add_from_arxiv_url(self, url: str) -> (bool, str):
-        """Validate arXiv URL, download the PDF, and add to documents."""
+        """Validate arXiv URL or path, download the PDF, and add to documents.
+
+        Accepts:
+        - Full URLs with or without scheme (http/https)
+        - Host-only forms like "arxiv.org/abs/<id>"
+        - Path-only forms like "/abs/<id>" or "abs/<id>"
+        """
         from urllib.parse import urlparse
 
         try:
-            parsed = urlparse(url)
-            host_ok = parsed.netloc.endswith("arxiv.org")
-            if not host_ok:
+            s = (url or "").strip()
+            # Add https:// if missing (support arxiv.org without scheme only)
+            if not s.lower().startswith(("http://", "https://")):
+                s = "https://" + s
+            parsed = urlparse(s)
+            netloc = parsed.netloc
+            path = parsed.path or ""
+            if not netloc.endswith("arxiv.org"):
                 return False, "Not an arXiv URL (host must be arxiv.org)"
 
-            path = parsed.path or ""
-            if path.startswith("/abs/"):
-                id_part = path[len("/abs/"):]
-                # Some inputs might include trailing slashes
-                id_part = id_part.strip("/")
+            path_lower = path.lower()
+            if path_lower.startswith("/abs/"):
+                id_part = (path[5:]).strip("/")  # slice original path to preserve case
                 pdf_url = f"https://arxiv.org/pdf/{id_part}.pdf"
                 base_name = id_part
-            elif path.startswith("/pdf/"):
-                id_part = path[len("/pdf/"):].strip("/")
-                # Ensure .pdf extension in URL
+            elif path_lower.startswith("/pdf/"):
+                id_part = (path[5:]).strip("/")
                 if not id_part.lower().endswith(".pdf"):
                     pdf_url = f"https://arxiv.org/pdf/{id_part}.pdf"
                 else:
