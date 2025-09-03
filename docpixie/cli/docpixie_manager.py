@@ -116,9 +116,6 @@ class DocPixieManager:
         pdf_files = list(self.state_manager.documents_folder.glob("*.pdf"))
 
         if not pdf_files:
-            if not self.state_manager.has_documents():
-                chat_log.write(f"[yellow bold]●[/yellow bold] No PDF files found in {self.state_manager.documents_folder.absolute()}\n")
-                chat_log.write("[blue bold]●[/blue bold] Add PDF files to the documents folder and use /documents to manage them.\n")
             return
 
         new_pdf_files = [
@@ -160,7 +157,7 @@ class DocPixieManager:
             return
 
         if not self.state_manager.has_documents():
-            chat_log.write("[warning]⚠️ No documents indexed yet. Use /index to index documents first.[/warning]\\n")
+            chat_log.write("[warning]⚠️ No documents indexed yet. Use /documents to add and index documents first.[/warning]\\n")
             return
 
         self.state_manager.set_processing(True)

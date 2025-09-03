@@ -8,19 +8,25 @@ SetupScreen {
 }
 
 #setup-container {
-    width: 80;
+    width: 60;
     height: auto;
-    padding: 2;
-    border: solid $primary;
+    padding: 1 2;
+    background: #2d1f2d;
+    border: solid #ff99cc;
+}
+
+#setup-container > .title {
+    color: #ff99cc;
+}
+
+#setup-hint, .setup-text {
+    color: #bda6b6;
 }
 
 #api-input {
     margin: 1 0;
-}
-
-#button-container {
-    align: center middle;
-    margin-top: 1;
+    background: #2d1f2d;
+    border: solid #ff99cc;
 }
 """
 

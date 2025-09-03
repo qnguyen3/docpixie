@@ -55,7 +55,7 @@ class ConversationStorage:
             
             metadata = {}
             for conv_id, conv_data in data.items():
-                    if 'total_cost' not in conv_data:
+                if 'total_cost' not in conv_data:
                     conv_data['total_cost'] = 0.0
                 metadata[conv_id] = ConversationMetadata(**conv_data)
             

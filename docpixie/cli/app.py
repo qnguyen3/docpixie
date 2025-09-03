@@ -93,36 +93,69 @@ class SetupScreen(Screen):
     """First-time setup screen for API key configuration"""
 
     CSS = SETUP_SCREEN_CSS
+    BINDINGS = [
+        Binding("escape", "quit_if_empty", "Quit"),
+    ]
 
     def compose(self) -> ComposeResult:
         with Container(id="setup-container"):
-            yield Static("[bold]Welcome to DocPixie![/bold]\n", classes="title")
-            yield Static("DocPixie needs an OpenRouter API key to work with documents.\n")
-            yield Static("Get your API key from: [link]https://openrouter.ai/keys[/link]\n")
-            yield Input(placeholder="Enter your OpenRouter API key...", id="api-input", password=True)
-            with Horizontal(id="button-container"):
-                yield Button("Save & Continue", variant="primary", id="save-btn")
-                yield Button("Exit", variant="error", id="exit-btn")
+            yield Static("[bold]Welcome to DocPixie![/bold]", classes="title")
+            yield Static(
+                "DocPixie needs an OpenRouter API key to work with documents.",
+                classes="setup-text",
+            )
+            yield Static(
+                "Get your API key from: https://openrouter.ai/keys",
+                classes="setup-text",
+            )
+            yield Input(
+                placeholder="Enter your OpenRouter API key...",
+                id="api-input",
+                password=True,
+            )
+            yield Static(
+                "Press Enter to confirm • Press Esc to quit (only if key empty)",
+                id="setup-hint",
+            )
 
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save-btn":
-            api_input = self.query_one("#api-input", Input)
-            api_key = api_input.value.strip()
+    async def on_mount(self) -> None:
+        # Focus the input when screen shows
+        try:
+            self.query_one("#api-input", Input).focus()
+        except Exception:
+            pass
 
-            if not api_key:
-                api_input.placeholder = "API key cannot be empty!"
-                return
+    def action_confirm(self) -> None:
+        api_input = self.query_one("#api-input", Input)
+        api_key = api_input.value.strip()
 
-            # Save API key
-            config_manager = get_config_manager()
-            config_manager.set_api_key(api_key)
+        if not api_key:
+            api_input.placeholder = "API key cannot be empty!"
+            return
 
-            # Return to main app
-            self.app.pop_screen()
-            await self.app.docpixie_manager.initialize_docpixie()
+        # Save API key
+        config_manager = get_config_manager()
+        config_manager.set_api_key(api_key)
 
-        elif event.button.id == "exit-btn":
+        # Return to main app and initialize
+        self.app.pop_screen()
+        asyncio.create_task(self.app.docpixie_manager.initialize_docpixie())
+
+    def action_quit_if_empty(self) -> None:
+        api_input = self.query_one("#api-input", Input)
+        if not api_input.value.strip():
             self.app.exit()
+        else:
+            # N only quits when empty; hint the user
+            try:
+                hint = self.query_one("#setup-hint", Static)
+                hint.update("Clear the key to quit with Esc, or press Enter to save.")
+            except Exception:
+                pass
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        # Submit on Enter while focused in the input
+        self.action_confirm()
 
 
 class DocPixieTUI(
@@ -251,7 +284,6 @@ class DocPixieTUI(
         else:
             welcome_content.append("No documents indexed yet\n", style="yellow")
             welcome_content.append("Add PDFs to ./documents and type ", style="dim")
-            welcome_content.append("/index", style="bold yellow")
             welcome_content.append(" to get started\n\n", style="dim")
 
         welcome_content.append("Start chatting with your documents or type ", style="white")
