@@ -116,7 +116,7 @@ class ConversationManagerDialog(ModalScreen):
     }
 
     #dialog-container {
-        width: 80;
+        width: 66;
         height: auto;
         max-height: 35;
         min-height: 26;
@@ -139,6 +139,8 @@ class ConversationManagerDialog(ModalScreen):
         border: solid #4a3344;
         padding: 1;
         margin: 0;
+        content-align: left top;
+        text-align: left;
     }
 
     #no-conversations {
@@ -152,8 +154,15 @@ class ConversationManagerDialog(ModalScreen):
 
     .conversation-item {
         height: auto;
-        padding: 0 1;
+        padding: 0 0 0 1;
         margin: 0;
+        content-align: left middle;
+        text-align: left;
+    }
+
+    .conversation-content {
+        text-align: left;
+        width: 100%;
     }
 
     .conversation-item.--highlight {
@@ -288,6 +297,7 @@ class ConversationManagerDialog(ModalScreen):
     def _create_item_content(self, conv: ConversationMetadata) -> Static:
         """Create content for a conversation item (compact design)"""
         display_text = Text()
+        display_text.justify = "left"
 
         # Column 1: Selection checkbox (4 chars) - visible only in multi-select mode
         if self.multi_select_mode:
@@ -295,15 +305,12 @@ class ConversationManagerDialog(ModalScreen):
                 display_text.append("[✓] ", style="green bold")
             else:
                 display_text.append("[ ] ", style="dim")
-        else:
-            # Preserve alignment when not showing checkboxes
-            display_text.append("    ", style="dim")
 
-        # Column 2: Current marker (3 chars)
+        # Column 2: Current marker (2 chars)
         if conv.id == self.current_conversation_id:
             display_text.append("⭐ ", style="yellow")
         else:
-            display_text.append("   ", style="dim")
+            display_text.append("  ", style="dim")
 
         # Column 3: Conversation name (30 chars fixed width to prevent wrapping)
         name = conv.name
@@ -349,7 +356,7 @@ class ConversationManagerDialog(ModalScreen):
         display_text.append(" | ", style="dim")
         display_text.append(time_str, style="dim")
 
-        return Static(display_text)
+        return Static(display_text, classes="conversation-content")
 
     def _highlight_focused(self):
         """Highlight the currently focused conversation"""
