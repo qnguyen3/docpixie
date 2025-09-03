@@ -82,7 +82,7 @@ class AddDocumentDialog(ModalScreen):
     def compose(self):
         with Container(id="add-container"):
             yield Static("[bold]➕ Add PDF to Document Manager[/bold]", classes="add-title")
-            yield Static("Enter the full path to a PDF file", classes="add-hint")
+            yield Static("Enter a full path to a PDF file or an arXiv link (abs/pdf)", classes="add-hint")
             yield Input(placeholder="/full/path/to/file.pdf", id="path-input")
             yield Static("", id="error-msg")
             yield Static("[dim]Press Enter to add, or Esc to cancel[/dim]", classes="add-hint")
@@ -837,12 +837,18 @@ class DocumentManagerDialog(ModalScreen):
         Returns (ok, message).
         """
         try:
+            # Accept either a local file path or an arXiv URL
+            s = path_str.strip()
+            if s.lower().startswith("http://") or s.lower().startswith("https://"):
+                ok, msg = await self._add_from_arxiv_url(s)
+                return ok, msg
+
+            # Fallback: treat as local path to a PDF
             from shutil import copy2
-            src = Path(path_str).expanduser()
+            src = Path(s).expanduser()
             try:
                 src = src.resolve()
             except Exception:
-                # Keep as provided if resolve fails
                 pass
 
             if not src.exists() or not src.is_file():
@@ -861,7 +867,6 @@ class DocumentManagerDialog(ModalScreen):
             # If already inside documents folder, just refresh
             try:
                 if dest_dir.resolve() in src.parents:
-                    # File already under documents; ensure it appears
                     self._scan_and_load_documents()
                     self._update_title()
                     self._update_selection_info()
@@ -870,41 +875,123 @@ class DocumentManagerDialog(ModalScreen):
             except Exception:
                 pass
 
-            # Compute destination path; avoid overwriting existing files
-            base_name = src.stem
-            dest = dest_dir / f"{base_name}.pdf"
-            if dest.exists():
-                # Find a unique name like name (2).pdf
-                idx = 2
-                while True:
-                    candidate = dest_dir / f"{base_name} ({idx}).pdf"
-                    if not candidate.exists():
-                        dest = candidate
-                        break
-                    idx += 1
-
+            dest = self._unique_destination(dest_dir, src.stem)
             try:
                 copy2(str(src), str(dest))
             except Exception as e:
                 return False, f"Failed to copy file: {e}"
 
-            # Refresh list to include the new file
-            self._scan_and_load_documents()
-            self._update_title()
-            self._update_selection_info()
-
-            # Optionally focus the newly added item
-            try:
-                new_name = dest.stem
-                for idx, item in enumerate(self.all_items):
-                    if item['name'] == new_name:
-                        self.focused_index = idx
-                        self._highlight_focused()
-                        break
-            except Exception:
-                pass
-
+            self._post_add_refresh(dest)
             self.app.notify(f"Added {dest.name} to documents")
+            return True, "Added"
+
+        except Exception as e:
+            return False, f"Unexpected error: {e}"
+
+    def _unique_destination(self, dest_dir: Path, base_name: str) -> Path:
+        """Return a unique destination path under dest_dir for base_name.pdf"""
+        dest = dest_dir / f"{base_name}.pdf"
+        if not dest.exists():
+            return dest
+        idx = 2
+        while True:
+            candidate = dest_dir / f"{base_name} ({idx}).pdf"
+            if not candidate.exists():
+                return candidate
+            idx += 1
+
+    def _post_add_refresh(self, dest: Path) -> None:
+        """Refresh list UI after adding a file, and focus it."""
+        self._scan_and_load_documents()
+        self._update_title()
+        self._update_selection_info()
+        try:
+            new_name = dest.stem
+            for idx, item in enumerate(self.all_items):
+                if item['name'] == new_name:
+                    self.focused_index = idx
+                    self._highlight_focused()
+                    break
+        except Exception:
+            pass
+
+    async def _add_from_arxiv_url(self, url: str) -> (bool, str):
+        """Validate arXiv URL, download the PDF, and add to documents."""
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+            host_ok = parsed.netloc.endswith("arxiv.org")
+            if not host_ok:
+                return False, "Not an arXiv URL (host must be arxiv.org)"
+
+            path = parsed.path or ""
+            if path.startswith("/abs/"):
+                id_part = path[len("/abs/"):]
+                # Some inputs might include trailing slashes
+                id_part = id_part.strip("/")
+                pdf_url = f"https://arxiv.org/pdf/{id_part}.pdf"
+                base_name = id_part
+            elif path.startswith("/pdf/"):
+                id_part = path[len("/pdf/"):].strip("/")
+                # Ensure .pdf extension in URL
+                if not id_part.lower().endswith(".pdf"):
+                    pdf_url = f"https://arxiv.org/pdf/{id_part}.pdf"
+                else:
+                    pdf_url = f"https://arxiv.org/pdf/{id_part}"
+                base_name = id_part[:-4] if id_part.lower().endswith(".pdf") else id_part
+            else:
+                return False, "Invalid arXiv path. Use /abs/<id> or /pdf/<id>"
+
+            # Sanitize base name
+            base_name = base_name.replace("/", "-")
+            if not base_name:
+                return False, "Invalid arXiv identifier"
+
+            dest_dir = self.documents_folder
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                return False, f"Cannot access documents folder: {e}"
+
+            dest = self._unique_destination(dest_dir, base_name)
+
+            # Download in a thread to avoid blocking UI
+            async def _download() -> (bool, str):
+                from urllib.request import urlopen, Request
+                try:
+                    def _do():
+                        req = Request(pdf_url, headers={"User-Agent": "DocPixie/CLI"})
+                        with urlopen(req, timeout=60) as resp, open(dest, "wb") as f:
+                            # Basic content-type check (tolerant)
+                            ctype = (resp.headers.get("Content-Type") or "").lower()
+                            if "pdf" not in ctype and not pdf_url.lower().endswith(".pdf"):
+                                # Might still be PDF; we proceed but this flags unknown
+                                pass
+                            while True:
+                                chunk = resp.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                        return True, "Downloaded"
+                    loop = asyncio.get_event_loop()
+                    return await loop.run_in_executor(None, _do)
+                except Exception as e:
+                    return False, f"Failed to download: {e}"
+
+            ok, msg = await _download()
+            if not ok:
+                # Cleanup partial file if any
+                try:
+                    if dest.exists():
+                        dest.unlink()
+                except Exception:
+                    pass
+                return False, msg
+
+            # Refresh UI
+            self._post_add_refresh(dest)
+            self.app.notify(f"Downloaded arXiv PDF: {dest.name}")
             return True, "Added"
 
         except Exception as e:
