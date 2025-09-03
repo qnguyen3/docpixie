@@ -11,27 +11,31 @@ from dataclasses import dataclass, asdict, field
 
 
 PLANNING_MODELS = [
-    "openai/gpt-5-mini",
-    "openai/gpt-5",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-3.5-haiku",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
     "openai/gpt-4.1",
     "openai/gpt-4.1-mini",
-    "google/gemini-2.5-pro",
-    "nousresearch/hermes-4-70b",
-    "anthropic/claude-sonnet-4",
-    "anthropic/claude-opus-4.1",
-    "anthropic/claude-3.5-haiku",
+    "openai/gpt-5-mini",
+    "openai/gpt-5",
     "qwen/qwen-plus",
     "qwen/qwen-max",
+    "nousresearch/hermes-4-70b",
     "deepseek/deepseek-chat-v3.1",
     "mistralai/mistral-medium-3.1",
 ]
 
 VISION_MODELS = [
+    "google/gemini-2.5-pro",
     "google/gemini-2.5-flash",
-    "openai/gpt-4.1-mini",
+    "google/gemini-2.5-flash-lite",
     "openai/gpt-4.1",
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4.1-nano",
     "anthropic/claude-sonnet-4",
-    "anthropic/claude-3.5-haiku",
+    "minimax/minimax-01",
 ]
 
 
@@ -41,8 +45,8 @@ class CLIConfig:
 
     openrouter_api_key: Optional[str] = None
 
-    text_model: str = "openai/gpt-5-mini"
-    vision_model: str = "openai/gpt-4.1"
+    text_model: str = "qwen/qwen-plus"
+    vision_model: str = "google/gemini-2.5-flash"
 
     last_conversation_id: Optional[str] = None
     theme: str = "default"
