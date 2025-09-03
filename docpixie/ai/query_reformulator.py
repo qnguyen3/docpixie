@@ -7,6 +7,7 @@ import logging
 
 from ..providers.base import BaseProvider
 from ..exceptions import QueryReformulationError
+from ..core.utils import sanitize_llm_json
 from .prompts import QUERY_REFORMULATION_PROMPT, SYSTEM_QUERY_REFORMULATOR
 
 logger = logging.getLogger(__name__)
@@ -59,14 +60,14 @@ class QueryReformulator:
 
             response = await self.provider.process_text_messages(
                 messages=messages_for_api,
-                max_tokens=1024,
+                max_tokens=8192,
                 temperature=0.2
             )
 
             # Parse JSON response
             result = None
             try:
-                result = json.loads(response.strip())
+                result = json.loads(sanitize_llm_json(response))
                 reformulated = result.get("reformulated_query", current_query)
 
                 logger.info(f"Query reformulation: '{current_query}' → '{reformulated}'")

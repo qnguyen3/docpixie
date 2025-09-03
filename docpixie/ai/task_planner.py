@@ -12,6 +12,7 @@ from ..models.agent import AgentTask, TaskPlan, TaskResult, TaskStatus
 from ..models.document import Document
 from ..providers.base import BaseProvider
 from ..exceptions import TaskPlanningError
+from ..core.utils import sanitize_llm_json
 from .prompts import (
     ADAPTIVE_INITIAL_PLANNING_PROMPT,
     ADAPTIVE_PLAN_UPDATE_PROMPT,
@@ -75,7 +76,7 @@ class TaskPlanner:
 
             result = await self.provider.process_text_messages(
                 messages=messages,
-                max_tokens=1024,
+                max_tokens=8192,
                 temperature=0.3
             )
 
@@ -139,7 +140,7 @@ class TaskPlanner:
                 available_documents=available_documents,
                 current_plan_status=plan_status,
                 completed_task_name=latest_result.task.name,
-                task_findings=latest_result.analysis[:500],  # Limit length
+                task_findings=latest_result.analysis,
                 progress_summary=progress_summary
             )
 
@@ -150,7 +151,7 @@ class TaskPlanner:
 
             result = await self.provider.process_text_messages(
                 messages=messages,
-                max_tokens=1024,
+                max_tokens=8192,
                 temperature=0.3
             )
 
@@ -167,7 +168,7 @@ class TaskPlanner:
     def _parse_initial_plan(self, result: str, query: str, documents: Optional[List[Document]] = None) -> TaskPlan:
         """Parse initial planning response and create TaskPlan with document assignments"""
         try:
-            plan_data = json.loads(result.strip())
+            plan_data = json.loads(sanitize_llm_json(result))
             tasks = []
 
             # Create map of available document IDs for validation
@@ -202,7 +203,7 @@ class TaskPlanner:
 
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"Failed to parse initial plan: {e}")
-            raise TaskPlanningError(f"Failed to parse task plan JSON: {e}")
+            raise TaskPlanningError(f"Failed to parse task plan JSON: {e}, Raw response: {result}")
 
     def _apply_plan_updates(
         self,
@@ -212,7 +213,7 @@ class TaskPlanner:
     ) -> TaskPlan:
         """Apply updates to the current plan based on agent's decision"""
         try:
-            update_data = json.loads(update_result.strip())
+            update_data = json.loads(sanitize_llm_json(update_result))
             action = update_data.get("action", "continue")
             reason = update_data.get("reason", "No reason provided")
 

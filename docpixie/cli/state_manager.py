@@ -33,27 +33,35 @@ class AppStateManager:
         self.conversation_storage = ConversationStorage()
     
     def get_status_text(self) -> str:
-        """Get current status bar text"""
+        """Get current status bar text with emoji prefixes"""
         text_model, vision_model = self.config_manager.get_models()
         doc_count = len(self.indexed_documents)
 
-        conversation_info = ""
-        cost_info = ""
+        segments = [
+            f"📄: {doc_count}",
+            f"🧠: {text_model.split('/')[-1]}",
+            f"👁️: {vision_model.split('/')[-1]}",
+        ]
+
         if self.current_conversation_id:
             conversations = self.conversation_storage.list_local_conversations()
             current_conv = next(
                 (conv for conv in conversations if conv.id == self.current_conversation_id),
-                None
+                None,
             )
             if current_conv:
-                conversation_info = f" | {current_conv.name[:20]}" + ("..." if len(current_conv.name) > 20 else "")
-                total_cost = getattr(current_conv, 'total_cost', 0.0) or 0.0
-                if total_cost < 0.01:
-                    cost_info = f" | ${total_cost:.6f}"
-                else:
-                    cost_info = f" | ${total_cost:.4f}"
+                # Conversation name (truncate to 20 chars, add ellipsis if longer)
+                conv_name = current_conv.name[:20] + ("..." if len(current_conv.name) > 20 else "")
+                segments.append(f"💬: {conv_name}")
 
-        return f"Docs: {doc_count} | {text_model.split('/')[-1]} | {vision_model.split('/')[-1]}{conversation_info}{cost_info}"
+                # Total cost formatting
+                total_cost = getattr(current_conv, "total_cost", 0.0) or 0.0
+                if total_cost < 0.01:
+                    segments.append(f"💰: {total_cost:.6f}")
+                else:
+                    segments.append(f"💰: {total_cost:.4f}")
+
+        return " | ".join(segments)
     
     def add_document(self, document: Document) -> None:
         """Add a document to the indexed documents list"""

@@ -7,6 +7,7 @@ import logging
 
 from ..providers.base import BaseProvider
 from ..exceptions import QueryClassificationError
+from ..core.utils import sanitize_llm_json
 from .prompts import QUERY_CLASSIFICATION_PROMPT, SYSTEM_QUERY_CLASSIFIER
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ class QueryClassifier:
 
             # Parse JSON response
             try:
-                result = json.loads(response.strip())
+                result = json.loads(sanitize_llm_json(response))
 
                 # Validate required fields
                 if "reasoning" not in result or "needs_documents" not in result:

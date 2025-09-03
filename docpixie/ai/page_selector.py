@@ -11,6 +11,7 @@ from ..models.document import Page
 from ..providers.base import BaseProvider
 from ..core.config import DocPixieConfig
 from ..exceptions import PageSelectionError
+from ..core.utils import sanitize_llm_json
 from .prompts import SYSTEM_PAGE_SELECTOR, USER_VISION_ANALYSIS, VISION_PAGE_SELECTION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class VisionPageSelector:
         """
         try:
             # Parse JSON response
-            selection_data = json.loads(result.strip())
+            selection_data = json.loads(sanitize_llm_json(result))
             selected_indices = selection_data.get("selected_pages", [])
 
             selected_pages = []
