@@ -258,6 +258,46 @@ class DeletionConfirmDialog(ModalScreen):
             self.dismiss()
 
 
+class FileDeletionConfirmDialog(ModalScreen):
+    """Modal dialog to confirm deleting PDF files from the documents folder"""
+
+    CSS = """
+    FileDeletionConfirmDialog { align: center middle; }
+    #confirm-container { width: 50; height: auto; min-height: 10; padding: 1; background: $surface; border: solid $error; }
+    .confirm-title { height: 1; margin: 0 0 1 0; color: $error; }
+    .confirm-message { height: 2; margin: 0 0 1 0; }
+    .confirm-hint { height: 1; align: center middle; color: $text-muted; margin-top: 1; }
+    """
+
+    def __init__(self, file_count: int):
+        super().__init__()
+        self.file_count = file_count
+        self.confirmed = False
+        self.file_paths: List[Path] = []
+        self.parent_dialog = None
+
+    def compose(self):
+        with Container(id="confirm-container"):
+            yield Static("[bold]Delete PDF File(s)[/bold]", classes="confirm-title")
+            if self.file_count == 1:
+                msg = "Are you sure you want to delete 1 file from the list?"
+            else:
+                msg = f"Are you sure you want to delete {self.file_count} files from the list?"
+            yield Static(msg, classes="confirm-message")
+            yield Static("[bold]This removes the file(s) from ./documents only.[/bold]", classes="confirm-message")
+            yield Static("[dim]It does NOT unindex documents. Use U to unindex first.[/dim]", classes="confirm-message")
+            yield Static("[dim]Press Y to confirm or N to cancel[/dim]", classes="confirm-hint")
+
+    async def on_key(self, event: events.Key) -> None:
+        if event.key.lower() == "y":
+            self.confirmed = True
+            if self.file_paths and self.parent_dialog:
+                asyncio.create_task(self.parent_dialog._perform_file_deletions(self.file_paths))
+            self.dismiss()
+        elif event.key.lower() == "n" or event.key == "escape":
+            self.confirmed = False
+            self.dismiss()
+
 class DocumentManagerDialog(ModalScreen):
     """Modal dialog for managing all documents (indexed and unindexed)"""
 
@@ -387,7 +427,7 @@ class DocumentManagerDialog(ModalScreen):
             
             # Control hints
             yield Static(
-                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]A[/dim] Add PDF  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
+                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]A[/dim] Add PDF  [dim]R[/dim] Rename Focused  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from List (Unindexed only)  [dim]U[/dim] Unindex  [dim]Esc[/dim] Close",
                 id="controls-hint"
             )
 
@@ -787,9 +827,15 @@ class DocumentManagerDialog(ModalScreen):
         elif event.key.lower() == "i":
             # Index selected unindexed documents
             await self._index_selected()
-        elif event.key.lower() == "d":
-            # Delete selected indexed documents with confirmation
+        elif event.key.lower() == "u":
+            # Unindex selected indexed documents with confirmation
             await self._remove_selected()
+        elif event.key.lower() == "d":
+            # Delete selected files from the list (remove PDF from ./documents)
+            await self._delete_selected_files()
+        elif event.key.lower() == "r":
+            # Rename focused item
+            await self._prompt_rename_focused()
         elif event.key.lower() == "a":
             # Prompt to add a new PDF by full path
             add_dialog = AddDocumentDialog()
@@ -818,6 +864,66 @@ class DocumentManagerDialog(ModalScreen):
         
         self._update_title()
         self._update_selection_info()
+
+    async def _delete_selected_files(self) -> None:
+        """Delete selected files from the documents folder with confirmation"""
+        files_to_delete: List[Path] = []
+        selected_names = set(self.selected_items)
+
+        # Do not allow deletion if any selected item is indexed
+        indexed_selected = []
+        for item in self.all_items:
+            if item['name'] in selected_names:
+                if item.get('is_indexed'):
+                    indexed_selected.append(item['name'])
+                else:
+                    p: Path = item['pdf_path']
+                    if p.exists():
+                        files_to_delete.append(p)
+
+        if indexed_selected:
+            # Notify and block deletion; require unindexing first
+            if len(indexed_selected) == 1:
+                self.app.notify("Cannot delete an indexed document. Use U to unindex first.", severity="warning")
+            else:
+                self.app.notify("Cannot delete: some selections are indexed. Use U to unindex first.", severity="warning")
+            return
+
+        if not files_to_delete:
+            return
+
+        confirm = FileDeletionConfirmDialog(len(files_to_delete))
+        confirm.file_paths = files_to_delete
+        confirm.parent_dialog = self
+        self.app.push_screen(confirm)
+
+    async def _perform_file_deletions(self, file_paths: List[Path]) -> None:
+        """Actually delete files and refresh the UI"""
+        deleted = 0
+        for p in file_paths:
+            try:
+                if p.exists():
+                    p.unlink()
+                    deleted += 1
+            except Exception as e:
+                self.app.notify(f"Failed to delete {p.name}: {e}", severity="error")
+
+        # Clear selections and refresh list
+        self.selected_items.clear()
+        self._scan_and_load_documents()
+        self._update_title()
+        self._update_selection_info()
+
+        # Adjust focus if needed
+        if self.document_items:
+            self.focused_index = min(self.focused_index, len(self.document_items) - 1)
+            self._highlight_focused()
+
+        # Notify
+        if deleted == 1:
+            self.app.notify("Deleted 1 file from documents")
+        elif deleted > 1:
+            self.app.notify(f"Deleted {deleted} files from documents")
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle list item click"""
@@ -884,6 +990,167 @@ class DocumentManagerDialog(ModalScreen):
             self._post_add_refresh(dest)
             self.app.notify(f"Added {dest.name} to documents")
             return True, "Added"
+
+        except Exception as e:
+            return False, f"Unexpected error: {e}"
+
+    async def _prompt_rename_focused(self) -> None:
+        """Open a modal input to rename the focused file"""
+        if not self.all_items or not (0 <= self.focused_index < len(self.all_items)):
+            return
+        item = self.all_items[self.focused_index]
+        current_name = f"{item['name']}.pdf"
+
+        # Inline dialog class to reuse styling
+        class RenameDialog(ModalScreen):
+            CSS = """
+            RenameDialog { align: center middle; }
+            #rename-container { width: 70; height: auto; min-height: 10; padding: 1; background: $surface; border: solid #ff99cc; }
+            .rename-title { height: 1; margin: 0 0 1 0; color: #ff99cc; }
+            #newname-input { width: 100%; margin: 1 0; }
+            .rename-hint { height: 1; align: center middle; color: $text-muted; margin-top: 1; }
+            #rename-error { height: auto; color: $error; margin: 0 0 1 0; }
+            """
+
+            def __init__(self, parent_dialog: 'DocumentManagerDialog', initial: str):
+                super().__init__()
+                self.parent_dialog_ref = parent_dialog
+                self.initial = initial
+
+            def compose(self):
+                with Container(id="rename-container"):
+                    yield Static("[bold]✏️ Rename File[/bold]", classes="rename-title")
+                    yield Static("Enter a new name for the PDF (with or without .pdf)", classes="rename-hint")
+                    yield Input(placeholder=self.initial, id="newname-input")
+                    yield Static("", id="rename-error")
+                    yield Static("[dim]Press Enter to rename, or Esc to cancel[/dim]", classes="rename-hint")
+
+            async def on_mount(self) -> None:
+                try:
+                    inp = self.query_one("#newname-input", Input)
+                    inp.value = self.initial
+                    self.call_after_refresh(lambda: inp.focus())
+                except Exception:
+                    pass
+
+            async def on_key(self, event: events.Key) -> None:
+                if event.key == "escape":
+                    self.dismiss()
+                    return
+                if event.key == "enter":
+                    newname = (self.query_one("#newname-input", Input).value or "").strip()
+                    if not newname:
+                        self.query_one("#rename-error", Static).update("[error]Name cannot be empty[/error]")
+                        return
+                    ok, msg = await self.parent_dialog_ref._rename_focused_internal(newname)
+                    if ok:
+                        self.dismiss()
+                    else:
+                        self.query_one("#rename-error", Static).update(f"[error]{msg}[/error]")
+
+        dlg = RenameDialog(self, current_name)
+        self.app.push_screen(dlg)
+
+    async def _rename_focused_internal(self, newname: str) -> (bool, str):
+        """Perform the rename operation for the focused item"""
+        try:
+            if not self.all_items or not (0 <= self.focused_index < len(self.all_items)):
+                return False, "No item selected"
+
+            item = self.all_items[self.focused_index]
+            current_path: Path = item['pdf_path']
+            current_stem = item['name']
+
+            # Normalize new name
+            nn = newname.strip()
+            if nn.lower().endswith('.pdf'):
+                nn = nn[:-4]
+            if not nn:
+                return False, "Invalid name"
+            if '/' in nn or '\\' in nn:
+                return False, "Name must not contain path separators"
+
+            dest_dir = self.documents_folder
+            dest_path = dest_dir / f"{nn}.pdf"
+
+            # If same name, no change
+            if dest_path == current_path:
+                return True, "No changes"
+
+            if dest_path.exists():
+                return False, "A file with that name already exists"
+
+            # Ensure directory exists
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                return False, f"Cannot access documents folder: {e}"
+
+            # Rename/move the file
+            try:
+                current_path.rename(dest_path)
+            except Exception as e:
+                return False, f"Failed to rename file: {e}"
+
+            new_stem = dest_path.stem
+
+            # If indexed, update storage metadata and in-memory doc
+            if item.get('is_indexed') and item.get('document') is not None and self.docpixie is not None:
+                doc = item['document']
+                try:
+                    storage_base = Path(self.docpixie.config.local_storage_path)
+                    meta_path = storage_base / doc.id / 'metadata.json'
+                    if meta_path.exists():
+                        import json
+                        with open(meta_path, 'r') as f:
+                            metadata = json.load(f)
+                        metadata['name'] = new_stem
+                        for p in metadata.get('pages', []):
+                            p['document_name'] = new_stem
+                        from datetime import datetime as _dt
+                        metadata['updated_at'] = _dt.now().isoformat()
+                        with open(meta_path, 'w') as f:
+                            json.dump(metadata, f, indent=2)
+                except Exception as e:
+                    # Roll back file rename if storage update fails?
+                    # Best-effort: try to move back
+                    try:
+                        dest_path.rename(current_path)
+                    except Exception:
+                        pass
+                    return False, f"Failed to update index metadata: {e}"
+
+                # Update in-memory document and state manager tracking
+                try:
+                    doc.name = new_stem
+                    if getattr(doc, 'pages', None):
+                        for p in doc.pages:
+                            p.document_name = new_stem
+                    # Update in state manager list
+                    for i, d in enumerate(self.app.state_manager.indexed_documents):
+                        if d.id == doc.id:
+                            self.app.state_manager.indexed_documents[i] = doc
+                            break
+                except Exception:
+                    pass
+
+            # Refresh UI list by rescanning
+            self._scan_and_load_documents()
+            self._update_title()
+            self._update_selection_info()
+
+            # Focus the newly renamed item
+            try:
+                for idx, it in enumerate(self.all_items):
+                    if it['pdf_path'] == dest_path:
+                        self.focused_index = idx
+                        self._highlight_focused()
+                        break
+            except Exception:
+                pass
+
+            self.app.notify(f"Renamed to {dest_path.name}")
+            return True, "Renamed"
 
         except Exception as e:
             return False, f"Unexpected error: {e}"
