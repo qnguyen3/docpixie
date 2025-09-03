@@ -53,9 +53,11 @@ class ChatInput(TextArea):
 
     # Override default TextArea bindings with priority
     BINDINGS = [
-        # Important: handle Shift+Enter before Enter so newline takes precedence
+        # Global-ish shortcuts accessible while input is focused
+        Binding("ctrl+d", "show_documents", "Documents", priority=True),
+        Binding("ctrl+/", "toggle_palette", "Commands", priority=True),
+        # Input editing semantics
         Binding("shift+enter", "add_newline", "New line", priority=True),
-        # Common terminal fallbacks for newline when Shift+Enter isn't distinct
         Binding("ctrl+j", "add_newline", "New line", priority=True),
         Binding("meta+enter", "add_newline", "New line", priority=True),
         Binding("enter", "submit_message", "Submit", priority=True),
@@ -70,6 +72,24 @@ class ChatInput(TextArea):
     def action_add_newline(self) -> None:
         """Add a newline on Shift+Enter"""
         self.insert("\n")
+
+    def action_show_documents(self) -> None:
+        """Forward Ctrl+D to app's document manager action"""
+        app = self.app
+        try:
+            if hasattr(app, 'action_show_documents'):
+                app.action_show_documents()
+        except Exception:
+            pass
+
+    def action_toggle_palette(self) -> None:
+        """Forward Ctrl+/ to app's command palette toggle"""
+        app = self.app
+        try:
+            if hasattr(app, 'action_toggle_palette'):
+                app.action_toggle_palette()
+        except Exception:
+            pass
 
 
 class SetupScreen(Screen):
@@ -120,12 +140,12 @@ class DocPixieTUI(
     CSS = MAIN_APP_CSS
 
     BINDINGS = [
-        ("ctrl+q", "quit", "Quit"),
         ("ctrl+n", "new_conversation", "New Conversation"),
         ("ctrl+l", "show_conversations", "Conversations"),
         ("ctrl+o", "show_models", "Model Config"),
         ("ctrl+d", "show_documents", "Documents"),
         ("ctrl+slash", "toggle_palette", "Commands"),
+        ("ctrl+q", "quit", "Quit"),
     ]
 
     def __init__(self):
