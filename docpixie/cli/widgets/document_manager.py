@@ -7,7 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import List, Optional, Set, Dict
 from datetime import datetime
-from textual.widgets import Static, ListView, ListItem, Label
+from textual.widgets import Static, ListView, ListItem, Label, Input
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.message import Message
@@ -31,6 +31,84 @@ class DocumentsIndexed(Message):
     def __init__(self, documents: List[Document]):
         self.documents = documents
         super().__init__()
+
+
+class AddDocumentDialog(ModalScreen):
+    """Modal dialog to prompt for a PDF path and add it to the documents folder"""
+
+    CSS = """
+    AddDocumentDialog {
+        align: center middle;
+    }
+
+    #add-container {
+        width: 70;
+        height: auto;
+        min-height: 10;
+        padding: 1;
+        background: $surface;
+        border: solid #ff99cc;
+    }
+
+    .add-title {
+        height: 1;
+        margin: 0 0 1 0;
+        color: #ff99cc;
+    }
+
+    #path-input {
+        width: 100%;
+        margin: 1 0;
+    }
+
+    .add-hint {
+        height: 1;
+        align: center middle;
+        color: $text-muted;
+        margin-top: 1;
+    }
+
+    #error-msg {
+        height: auto;
+        color: $error;
+        margin: 0 0 1 0;
+    }
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.parent_dialog = None  # type: Optional[DocumentManagerDialog]
+
+    def compose(self):
+        with Container(id="add-container"):
+            yield Static("[bold]➕ Add PDF to Document Manager[/bold]", classes="add-title")
+            yield Static("Enter the full path to a PDF file", classes="add-hint")
+            yield Input(placeholder="/full/path/to/file.pdf", id="path-input")
+            yield Static("", id="error-msg")
+            yield Static("[dim]Press Enter to add, or Esc to cancel[/dim]", classes="add-hint")
+
+    async def on_mount(self) -> None:
+        try:
+            self.call_after_refresh(lambda: self.query_one("#path-input", Input).focus())
+        except Exception:
+            pass
+
+    async def on_key(self, event: events.Key) -> None:
+        if event.key == "escape":
+            self.dismiss()
+            return
+        if event.key == "enter":
+            path_input = self.query_one("#path-input", Input)
+            path_str = (path_input.value or "").strip()
+            if not path_str:
+                self.query_one("#error-msg", Static).update("[error]Path cannot be empty[/error]")
+                return
+            if self.parent_dialog:
+                ok, message = await self.parent_dialog._add_pdf_from_path(path_str)
+                if ok:
+                    self.dismiss()
+                else:
+                    self.query_one("#error-msg", Static).update(f"[error]{message}[/error]")
 
 
 class IndexingConfirmDialog(ModalScreen):
@@ -309,7 +387,7 @@ class DocumentManagerDialog(ModalScreen):
             
             # Control hints
             yield Static(
-                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
+                "[dim]↑↓[/dim] Navigate  [dim]Enter/Space[/dim] Toggle  [dim]A[/dim] Add PDF  [dim]I[/dim] Index Selected  [dim]D[/dim] Delete from Storage  [dim]Esc[/dim] Close",
                 id="controls-hint"
             )
 
@@ -712,6 +790,11 @@ class DocumentManagerDialog(ModalScreen):
         elif event.key.lower() == "d":
             # Delete selected indexed documents with confirmation
             await self._remove_selected()
+        elif event.key.lower() == "a":
+            # Prompt to add a new PDF by full path
+            add_dialog = AddDocumentDialog()
+            add_dialog.parent_dialog = self
+            self.app.push_screen(add_dialog)
 
     async def _update_after_removal(self, document_ids: List[str]) -> None:
         """Update UI immediately after document removal"""
@@ -747,3 +830,82 @@ class DocumentManagerDialog(ModalScreen):
 
             # Toggle selection
             self._toggle_selection(index)
+
+    async def _add_pdf_from_path(self, path_str: str) -> (bool, str):
+        """Validate and add a PDF into the documents folder, then refresh list.
+
+        Returns (ok, message).
+        """
+        try:
+            from shutil import copy2
+            src = Path(path_str).expanduser()
+            try:
+                src = src.resolve()
+            except Exception:
+                # Keep as provided if resolve fails
+                pass
+
+            if not src.exists() or not src.is_file():
+                return False, "File does not exist or is not a file"
+
+            if src.suffix.lower() != ".pdf":
+                return False, "Only .pdf files are allowed"
+
+            # Ensure destination folder exists
+            dest_dir = self.documents_folder
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                return False, f"Cannot access documents folder: {e}"
+
+            # If already inside documents folder, just refresh
+            try:
+                if dest_dir.resolve() in src.parents:
+                    # File already under documents; ensure it appears
+                    self._scan_and_load_documents()
+                    self._update_title()
+                    self._update_selection_info()
+                    self.app.notify(f"Detected existing file in documents: {src.name}")
+                    return True, "Added"
+            except Exception:
+                pass
+
+            # Compute destination path; avoid overwriting existing files
+            base_name = src.stem
+            dest = dest_dir / f"{base_name}.pdf"
+            if dest.exists():
+                # Find a unique name like name (2).pdf
+                idx = 2
+                while True:
+                    candidate = dest_dir / f"{base_name} ({idx}).pdf"
+                    if not candidate.exists():
+                        dest = candidate
+                        break
+                    idx += 1
+
+            try:
+                copy2(str(src), str(dest))
+            except Exception as e:
+                return False, f"Failed to copy file: {e}"
+
+            # Refresh list to include the new file
+            self._scan_and_load_documents()
+            self._update_title()
+            self._update_selection_info()
+
+            # Optionally focus the newly added item
+            try:
+                new_name = dest.stem
+                for idx, item in enumerate(self.all_items):
+                    if item['name'] == new_name:
+                        self.focused_index = idx
+                        self._highlight_focused()
+                        break
+            except Exception:
+                pass
+
+            self.app.notify(f"Added {dest.name} to documents")
+            return True, "Added"
+
+        except Exception as e:
+            return False, f"Unexpected error: {e}"
