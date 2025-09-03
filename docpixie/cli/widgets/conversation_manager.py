@@ -72,8 +72,8 @@ class DeletionConfirmDialog(ModalScreen):
         super().__init__()
         self.conversation_count = conversation_count
         self.confirmed = False
-        self.conversation_ids = []  # Will be set by parent dialog
-        self.parent_dialog = None  # Reference to parent ConversationManagerDialog
+        self.conversation_ids = []
+        self.parent_dialog = None
 
     def compose(self):
         """Create the confirmation dialog"""
@@ -97,10 +97,8 @@ class DeletionConfirmDialog(ModalScreen):
         """Handle key events"""
         if event.key.lower() == "y":
             self.confirmed = True
-            # Send removal message if we have conversation IDs
             if self.conversation_ids and self.parent_dialog:
                 self.parent_dialog.post_message(ConversationDeleted(self.conversation_ids))
-            # Only dismiss the confirmation dialog, not the parent
             self.dismiss()
         elif event.key.lower() == "n" or event.key == "escape":
             self.confirmed = False
@@ -205,28 +203,22 @@ class ConversationManagerDialog(ModalScreen):
         self.selected_items: Set[str] = set()  # Conversation IDs
         self.conversation_items: List[ListItem] = []
         self.focused_index = 0
-        # Multi-select mode is off by default for simpler UX
         self.multi_select_mode: bool = False
 
     def compose(self):
         """Create the conversation manager dialog"""
         with Container(id="dialog-container"):
-            # Title (will be updated with counts)
             yield Static("[bold]💬 Conversation Manager[/bold]", classes="title", id="title")
 
-            # Conversation list
             yield ListView(id="conversation-list")
 
-            # Empty state message (initially hidden)
             yield Static(
                 "[dim]No conversations found in this project.[/dim]",
                 id="no-conversations"
             )
 
-            # Selection info
             yield Static(id="selection-info", classes="info")
 
-            # Control hints (updated dynamically based on mode)
             yield Static(id="controls-hint")
 
     async def on_mount(self):
@@ -236,7 +228,6 @@ class ConversationManagerDialog(ModalScreen):
         self._update_selection_info()
         self._update_controls_hint()
 
-        # Set initial focus to the dialog itself
         self.focus()
 
     def _load_conversations(self):
@@ -247,37 +238,28 @@ class ConversationManagerDialog(ModalScreen):
         no_conv_msg = self.query_one("#no-conversations", Static)
 
         if not self.conversations:
-            # Show empty state
             list_view.display = False
             no_conv_msg.display = True
             return
 
-        # Hide empty state, show list
         list_view.display = True
         no_conv_msg.display = False
 
-        # Clear existing items
         list_view.clear()
         self.conversation_items = []
 
-        # Add conversation items
         for i, conv in enumerate(self.conversations):
-            # Create conversation item content
             item_content = self._create_item_content(conv)
 
-            # Create list item
             list_item = ListItem(item_content, classes="conversation-item")
-            # Store conversation ID for reference
             list_item.data = conv.id
 
-            # Mark current conversation
             if conv.id == self.current_conversation_id:
                 list_item.add_class("conversation-item-current")
 
             list_view.append(list_item)
             self.conversation_items.append(list_item)
 
-        # Focus first item
         if self.conversation_items:
             self.focused_index = 0
             self._highlight_focused()
@@ -299,41 +281,33 @@ class ConversationManagerDialog(ModalScreen):
         display_text = Text()
         display_text.justify = "left"
 
-        # Column 1: Selection checkbox (4 chars) - visible only in multi-select mode
         if self.multi_select_mode:
             if conv.id in self.selected_items:
                 display_text.append("[✓] ", style="green bold")
             else:
                 display_text.append("[ ] ", style="dim")
 
-        # Column 2: Current marker (2 chars)
         if conv.id == self.current_conversation_id:
             display_text.append("⭐ ", style="yellow")
         else:
             display_text.append("  ", style="dim")
 
-        # Column 3: Conversation name (30 chars fixed width to prevent wrapping)
         name = conv.name
         max_name_length = 30
 
         if len(name) > max_name_length:
-            # Truncate with ellipsis
             truncated_name = name[:max_name_length-3] + "..."
         else:
-            # Pad with spaces to maintain alignment
             truncated_name = name.ljust(max_name_length)
 
         display_text.append(truncated_name, style="bold")
 
-        # Column 4: Metadata (right side)
-        display_text.append("  ", style="dim")  # Spacing
+        display_text.append("  ", style="dim")
 
-        # Format time as relative
         updated_time = datetime.fromisoformat(conv.updated_at)
         now = datetime.now()
         time_diff = now - updated_time
 
-        # Calculate relative time
         if time_diff.total_seconds() < 60:
             time_str = "just now"
         elif time_diff.total_seconds() < 3600:
@@ -351,7 +325,6 @@ class ConversationManagerDialog(ModalScreen):
             months = int(time_diff.days / 30)
             time_str = f"{months}mo ago"
 
-        # Add metadata
         display_text.append(f"{conv.message_count} msgs", style="dim cyan")
         display_text.append(" | ", style="dim")
         display_text.append(time_str, style="dim")
@@ -360,29 +333,24 @@ class ConversationManagerDialog(ModalScreen):
 
     def _highlight_focused(self):
         """Highlight the currently focused conversation"""
-        # Remove previous highlights
         for item in self.conversation_items:
             item.remove_class("conversation-item-selected")
 
-        # Highlight current focus
         if 0 <= self.focused_index < len(self.conversation_items):
             self.conversation_items[self.focused_index].add_class("conversation-item-selected")
 
-            # Scroll to focused item
             list_view = self.query_one("#conversation-list", ListView)
             list_view.scroll_to_widget(self.conversation_items[self.focused_index])
 
     def _toggle_selection(self, index: int):
         """Toggle selection for a conversation"""
         if not self.multi_select_mode:
-            # Ignore selection toggles when not in multi-select mode
             return
 
         if 0 <= index < len(self.conversations):
             conv = self.conversations[index]
             conv_id = conv.id
 
-            # Don't allow selecting current conversation for deletion
             if conv_id == self.current_conversation_id:
                 self.app.notify("Cannot select the current conversation", severity="warning")
                 return
@@ -392,7 +360,6 @@ class ConversationManagerDialog(ModalScreen):
             else:
                 self.selected_items.add(conv_id)
 
-            # Update display
             self._refresh_conversation_item(index)
             self._update_selection_info()
 
@@ -407,10 +374,8 @@ class ConversationManagerDialog(ModalScreen):
             conv = self.conversations[index]
             list_item = self.conversation_items[index]
 
-            # Recreate content
             new_content = self._create_item_content(conv)
 
-            # Replace content in the list item
             list_item.remove_children()
             list_item.mount(new_content)
 
@@ -444,10 +409,8 @@ class ConversationManagerDialog(ModalScreen):
     async def _load_selected_conversation(self):
         """Load the first selected conversation (multi-select) or focused one (fallback)"""
         if self.multi_select_mode and self.selected_items:
-            # Load the first selected conversation
             conv_id = next(iter(self.selected_items))
         elif 0 <= self.focused_index < len(self.conversations):
-            # Load the focused conversation
             conv_id = self.conversations[self.focused_index].id
         else:
             return
@@ -470,7 +433,6 @@ class ConversationManagerDialog(ModalScreen):
                 return
             to_delete = list(self.selected_items)
         else:
-            # Single-select mode: delete only the focused item
             if 0 <= self.focused_index < len(self.conversations):
                 conv = self.conversations[self.focused_index]
                 if conv.id == self.current_conversation_id:
@@ -480,7 +442,6 @@ class ConversationManagerDialog(ModalScreen):
             else:
                 return
 
-        # Show confirmation dialog
         confirm_dialog = DeletionConfirmDialog(len(to_delete))
         confirm_dialog.conversation_ids = to_delete
         confirm_dialog.parent_dialog = self
@@ -500,7 +461,6 @@ class ConversationManagerDialog(ModalScreen):
 
     async def on_key(self, event: events.Key) -> None:
         """Handle key events"""
-        # Always prevent default to stop ListView from handling keys
         event.prevent_default()
         event.stop()
 
@@ -511,41 +471,31 @@ class ConversationManagerDialog(ModalScreen):
         elif event.key == "down":
             self._move_focus_down()
         elif event.key == "enter":
-            # Enter opens the focused conversation
             await self._load_focused_conversation()
         elif event.key == "space":
-            # Space toggles selection only in multi-select mode
             self._toggle_selection(self.focused_index)
         elif event.key.lower() == "l":
-            # Load selected or focused conversation
             await self._load_selected_conversation()
         elif event.key.lower() == "d" or event.key == "delete" or event.key == "backspace":
-            # Delete selected conversations with confirmation
             await self._delete_selected()
         elif event.key.lower() == "s":
-            # Toggle multi-select mode
             self.multi_select_mode = not self.multi_select_mode
             if not self.multi_select_mode and self.selected_items:
-                # Clear selections when exiting selection mode
                 self.selected_items.clear()
-            # Refresh UI elements
             self._refresh_all_conversation_items()
             self._update_selection_info()
             self._update_controls_hint()
         elif event.key.lower() == "n":
-            # New conversation
             self.post_message(ConversationSelected("new"))
             self.dismiss()
 
     async def on_conversation_deleted(self, event: ConversationDeleted) -> None:
         """Handle conversation deletion message"""
-        # Delete the conversations
         deleted_count = 0
         for conv_id in event.conversation_ids:
             success = self.conversation_storage.delete_conversation(conv_id)
             if success:
                 deleted_count += 1
-                # Remove from selected items
                 if conv_id in self.selected_items:
                     self.selected_items.remove(conv_id)
 
@@ -554,20 +504,16 @@ class ConversationManagerDialog(ModalScreen):
         else:
             self.app.notify(f"Deleted {deleted_count} conversations", severity="success")
 
-        # Reload the list
         self._load_conversations()
         self._update_title()
         self._update_selection_info()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle list item click"""
-        # Get the index of the clicked item
         index = event.list_view.index
         if index is not None:
-            # Update focus
             self.focused_index = index
             self._highlight_focused()
 
-            # Toggle selection only in multi-select mode
             if self.multi_select_mode:
                 self._toggle_selection(index)

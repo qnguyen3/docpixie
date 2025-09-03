@@ -10,7 +10,6 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass, asdict, field
 
 
-# Available OpenRouter models
 PLANNING_MODELS = [
     "openai/gpt-5-mini",
     "openai/gpt-5",
@@ -38,18 +37,14 @@ VISION_MODELS = [
 class CLIConfig:
     """CLI configuration stored globally in ~/.docpixie/"""
 
-    # API Configuration
     openrouter_api_key: Optional[str] = None
 
-    # Model Configuration
-    text_model: str = "openai/gpt-5-mini"  # Planning model (default)
-    vision_model: str = "openai/gpt-4.1"  # Vision model (default)
+    text_model: str = "openai/gpt-5-mini"
+    vision_model: str = "openai/gpt-4.1"
 
-    # User Preferences
     last_conversation_id: Optional[str] = None
     theme: str = "default"
 
-    # Settings
     auto_index_on_startup: bool = True
     max_conversation_history: int = 20
 
@@ -72,11 +67,9 @@ class ConfigManager:
         self.config_file = self.config_dir / "config.json"
         self.conversations_dir = self.config_dir / "conversations"
 
-        # Create directories if they don't exist
         self.config_dir.mkdir(exist_ok=True)
         self.conversations_dir.mkdir(exist_ok=True)
 
-        # Load or create configuration
         self.config = self.load_config()
 
     def load_config(self) -> CLIConfig:
@@ -90,7 +83,6 @@ class ConfigManager:
                 print(f"Warning: Failed to load config: {e}")
                 return CLIConfig()
         else:
-            # Check for environment variable as fallback
             env_key = os.getenv("OPENROUTER_API_KEY")
             config = CLIConfig()
             if env_key:
@@ -109,7 +101,6 @@ class ConfigManager:
         """Get OpenRouter API key from config or environment"""
         if self.config.openrouter_api_key:
             return self.config.openrouter_api_key
-        # Fallback to environment variable
         return os.getenv("OPENROUTER_API_KEY")
 
     def set_api_key(self, api_key: str):
@@ -147,8 +138,6 @@ class ConfigManager:
         Returns True if valid, False otherwise
         """
         try:
-            # Simple validation - just check if key exists and has reasonable format
-            # In production, you'd make a small test API call
             if api_key and len(api_key) > 10:
                 return True
             return False
@@ -156,7 +145,6 @@ class ConfigManager:
             return False
 
 
-# Global config manager instance
 _config_manager = None
 
 

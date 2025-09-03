@@ -28,8 +28,6 @@ class DocPixieManager:
         self.docpixie: Optional[DocPixie] = None
 
     async def create_docpixie_instance(self) -> bool:
-        """Create or recreate DocPixie instance with current configuration.
-        Returns True if successful, False otherwise."""
         try:
             api_key = self.config_manager.get_api_key()
             if not api_key:
@@ -61,7 +59,6 @@ class DocPixieManager:
             return False
 
     async def initialize_docpixie(self, show_welcome: bool = True) -> None:
-        """Full initialization of DocPixie on app start"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
 
         if not await self.create_docpixie_instance():
@@ -90,11 +87,9 @@ class DocPixieManager:
             chat_log.write(f"[error]❌ Failed to initialize: {e}[/error]")
 
     async def switch_models(self) -> None:
-        """Switch models without reloading documents or conversations"""
         await self.create_docpixie_instance()
 
     async def check_and_prompt_for_documents(self) -> None:
-        """Check for documents and prompt user to index them"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
 
         if not self.state_manager.documents_folder.exists():
@@ -139,7 +134,6 @@ class DocPixieManager:
             ))
 
     async def load_or_create_conversation(self) -> None:
-        """Load the last conversation or create a new one"""
         try:
             doc_ids = [doc.id for doc in self.state_manager.indexed_documents]
             last_conversation_id = self.state_manager.get_last_conversation_id()
@@ -159,7 +153,6 @@ class DocPixieManager:
             self.state_manager.set_current_conversation(None)
 
     async def process_query(self, query: str, task_callback: Optional[Callable] = None) -> None:
-        """Process user query with DocPixie"""
         chat_log = self.app.query_one("#chat-log", ChatArea)
 
         if not self.docpixie:
@@ -229,7 +222,6 @@ class DocPixieManager:
             self.state_manager.set_processing(False)
 
     def delete_document_sync(self, document_id: str) -> bool:
-        """Delete a document synchronously"""
         if self.docpixie:
             try:
                 return self.docpixie.delete_document_sync(document_id)

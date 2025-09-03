@@ -51,12 +51,9 @@ from .widgets import (
 class ChatInput(TextArea):
     """Custom TextArea for chat input with Enter to submit"""
 
-    # Override default TextArea bindings with priority
     BINDINGS = [
-        # Global-ish shortcuts accessible while input is focused
         Binding("ctrl+d", "show_documents", "Documents", priority=True),
         Binding("ctrl+/", "toggle_palette", "Commands", priority=True),
-        # Input editing semantics
         Binding("shift+enter", "add_newline", "New line", priority=True),
         Binding("ctrl+j", "add_newline", "New line", priority=True),
         Binding("meta+enter", "add_newline", "New line", priority=True),
@@ -175,15 +172,12 @@ class DocPixieTUI(
                     language=None,
                     tab_behavior="indent"
                 )
-                # Set a placeholder-like initial hint
                 text_area.show_line_numbers = False
                 yield text_area
 
-            # Control hints below the input
             yield Label(self.state_manager.default_input_hint, id="input-hint")
 
 
-        # Command palette (initially hidden)
         yield CommandPalette(id="command-palette")
 
         yield Footer()
@@ -191,9 +185,7 @@ class DocPixieTUI(
 
     async def on_mount(self) -> None:
         """Initialize the app when mounted"""
-        # Defer initialization to allow UI to render first
         self.set_timer(0.1, self.deferred_init)
-        # Ensure initial keyboard focus is on the chat input
         try:
             self.call_after_refresh(
                 lambda: self.query_one("#chat-input", ChatInput).focus()
@@ -203,7 +195,6 @@ class DocPixieTUI(
 
     async def deferred_init(self) -> None:
         """Deferred initialization to allow UI to render"""
-        # Check if API key is configured
         if not self.config_manager.has_api_key():
             await self.push_screen(SetupScreen())
         else:
@@ -236,14 +227,13 @@ class DocPixieTUI(
             "#ffcce6"   # light pink
         ]
 
-        # Split into lines and apply gradient
         lines = figlet_text.split("\n")
         for line in lines:
-            if line.strip():  # Only process non-empty lines
+            if line.strip():
                 colored_line = Text()
                 chars = list(line)
                 for i, char in enumerate(chars):
-                    if char != " " and char != "\n":  # Only color non-space characters
+                    if char != " " and char != "\n":
                         color_index = (i * (len(colors) - 1)) // max(len(chars) - 1, 1)
                         colored_line.append(char, style=colors[color_index] + " bold")
                     else:
@@ -251,13 +241,11 @@ class DocPixieTUI(
                 ascii_art.append(colored_line)
                 ascii_art.append("\n")
 
-        # Create welcome content
         welcome_content = Text()
         welcome_content.append("\n")
         welcome_content.append(ascii_art)
         welcome_content.append("\n\n")
 
-        # Status message
         if self.state_manager.indexed_documents:
             welcome_content.append(f"{len(self.state_manager.indexed_documents)} document(s) indexed and ready!\n\n", style="bold green")
         else:
@@ -266,12 +254,10 @@ class DocPixieTUI(
             welcome_content.append("/index", style="bold yellow")
             welcome_content.append(" to get started\n\n", style="dim")
 
-        # Prompt to start
         welcome_content.append("Start chatting with your documents or type ", style="white")
         welcome_content.append("/", style="bold cyan")
         welcome_content.append(" to see all commands", style="white")
 
-        # Create panel with the welcome message
         panel = Panel(
             Align.center(welcome_content),
             title="[bold #ff99cc]DocPixie[/]",
@@ -287,7 +273,6 @@ class DocPixieTUI(
     async def submit_chat_message(self) -> None:
         """Submit the chat message from the TextArea"""
         if self.state_manager.command_palette_active:
-            # If command palette is active, select the current command instead
             command_palette = self.query_one("#command-palette", CommandPalette)
             selected_command = command_palette.select_current_command()
             if selected_command:
@@ -302,7 +287,6 @@ class DocPixieTUI(
         user_input = text_area.text.strip()
 
         if user_input:
-            # Clear immediately for better UX, then process
             text_area.clear()
             await self.submit_text(user_input)
 
@@ -317,24 +301,19 @@ class DocPixieTUI(
         if not user_input:
             return
 
-        # Hide command palette if active
         if self.state_manager.command_palette_active:
             command_palette = self.query_one("#command-palette", CommandPalette)
             command_palette.hide()
             self.state_manager.command_palette_active = False
 
-        # Check for commands
         if user_input.startswith("/"):
             await self.handle_command(user_input.lower())
             return
 
-        # Display user message using ChatArea method
         chat_log.add_user_message(user_input)
 
-        # Disable input while processing, then re-enable after
         self.set_chat_input_enabled(False)
         try:
-            # Create task update callback for DocPixie processing
             async def task_callback(event_type: str, data: Any):
                 def _update():
                     try:
@@ -358,17 +337,13 @@ class DocPixieTUI(
         except Exception:
             return
 
-        # Toggle disabled state
         try:
             text_area.disabled = not enabled
         except Exception:
-            # Fallback if widget doesn't support disabled for some reason
             pass
 
-        # Update hint text to reflect state
         if enabled:
             hint.update(self.state_manager.default_input_hint)
-            # Return keyboard focus to the chat input after processing completes
             try:
                 self.call_after_refresh(lambda: text_area.focus())
             except Exception:

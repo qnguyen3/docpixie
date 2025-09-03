@@ -23,8 +23,8 @@ class ConversationMetadata:
     created_at: str
     updated_at: str
     message_count: int
-    indexed_documents: List[str]  # List of document IDs that were indexed when conversation created
-    total_cost: float = 0.0  # Total cost of all messages in this conversation
+    indexed_documents: List[str]
+    total_cost: float = 0.0
 
 
 class ConversationStorage:
@@ -36,16 +36,12 @@ class ConversationStorage:
         self.conversations_dir = self.base_path / "conversations"
         self.metadata_file = self.conversations_dir / "metadata.json"
         
-        # Create directories if they don't exist
         self.conversations_dir.mkdir(parents=True, exist_ok=True)
         
-        # Current working directory (absolute path for comparison)
         self.working_directory = str(Path.cwd().resolve())
         
-        # Current conversation
         self.current_conversation_id: Optional[str] = None
         
-        # Load metadata
         self._load_metadata()
     
     def _load_metadata(self) -> Dict[str, ConversationMetadata]:
@@ -59,8 +55,7 @@ class ConversationStorage:
             
             metadata = {}
             for conv_id, conv_data in data.items():
-                # Handle backward compatibility - add total_cost if missing
-                if 'total_cost' not in conv_data:
+                    if 'total_cost' not in conv_data:
                     conv_data['total_cost'] = 0.0
                 metadata[conv_id] = ConversationMetadata(**conv_data)
             
@@ -90,7 +85,6 @@ class ConversationStorage:
         if not messages:
             return f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
-        # Find first user message
         first_user_message = None
         for msg in messages:
             if msg.role == "user":
@@ -98,7 +92,6 @@ class ConversationStorage:
                 break
         
         if first_user_message:
-            # Use first 50 characters of the message
             name = first_user_message.content.strip()[:50]
             if len(first_user_message.content) > 50:
                 name += "..."
@@ -111,7 +104,6 @@ class ConversationStorage:
         conversation_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         
-        # Create metadata
         metadata = ConversationMetadata(
             id=conversation_id,
             name="New Chat",
@@ -123,7 +115,6 @@ class ConversationStorage:
             total_cost=0.0
         )
         
-        # Save empty conversation
         conversation_data = {
             "id": conversation_id,
             "metadata": asdict(metadata),
@@ -134,7 +125,6 @@ class ConversationStorage:
         with open(conversation_file, 'w') as f:
             json.dump(conversation_data, f, indent=2)
         
-        # Update metadata
         all_metadata = self._load_metadata()
         all_metadata[conversation_id] = metadata
         self._save_metadata(all_metadata)
@@ -148,7 +138,6 @@ class ConversationStorage:
         try:
             now = datetime.now().isoformat()
             
-            # Convert messages to dict format and calculate total cost
             messages_data = []
             total_cost = 0.0
             for msg in messages:
@@ -157,28 +146,23 @@ class ConversationStorage:
                     "content": msg.content,
                     "timestamp": msg.timestamp.isoformat()
                 }
-                # Always add cost (default to 0)
                 msg_cost = getattr(msg, 'cost', 0.0) or 0.0
                 msg_dict["cost"] = msg_cost
                 total_cost += msg_cost
                 messages_data.append(msg_dict)
             
-            # Load existing metadata
             all_metadata = self._load_metadata()
             if conversation_id in all_metadata:
                 conv_metadata = all_metadata[conversation_id]
-                # Update metadata
                 conv_metadata.updated_at = now
                 conv_metadata.message_count = len(messages)
                 conv_metadata.total_cost = total_cost
                 if indexed_documents is not None:
                     conv_metadata.indexed_documents = indexed_documents
                 
-                # Update name if it's still default
                 if conv_metadata.name == "New Chat" and messages:
                     conv_metadata.name = self._generate_conversation_name(messages)
             else:
-                # Create new metadata if doesn't exist
                 conv_metadata = ConversationMetadata(
                     id=conversation_id,
                     name=self._generate_conversation_name(messages),
@@ -191,7 +175,6 @@ class ConversationStorage:
                 )
                 all_metadata[conversation_id] = conv_metadata
             
-            # Save conversation data
             conversation_data = {
                 "id": conversation_id,
                 "metadata": asdict(conv_metadata),
@@ -202,7 +185,6 @@ class ConversationStorage:
             with open(conversation_file, 'w') as f:
                 json.dump(conversation_data, f, indent=2)
             
-            # Save metadata
             self._save_metadata(all_metadata)
             
         except Exception as e:
@@ -218,17 +200,15 @@ class ConversationStorage:
             with open(conversation_file, 'r') as f:
                 data = json.load(f)
             
-            # Load metadata
             metadata = ConversationMetadata(**data["metadata"])
             
-            # Load messages
             messages = []
             for msg_data in data["messages"]:
                 message = ConversationMessage(
                     role=msg_data["role"],
                     content=msg_data["content"],
                     timestamp=datetime.fromisoformat(msg_data["timestamp"]),
-                    cost=msg_data.get("cost", 0.0)  # Load cost, default to 0
+                    cost=msg_data.get("cost", 0.0)
                 )
                 messages.append(message)
             
@@ -243,31 +223,26 @@ class ConversationStorage:
         """List conversations from current working directory only"""
         all_metadata = self._load_metadata()
         
-        # Filter conversations for current directory
         local_conversations = []
         for conv_id, metadata in all_metadata.items():
             if metadata.working_directory == self.working_directory:
                 local_conversations.append(metadata)
         
-        # Sort by updated_at (most recent first)
         local_conversations.sort(key=lambda x: x.updated_at, reverse=True)
         return local_conversations
     
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation"""
         try:
-            # Remove conversation file
             conversation_file = self._conversation_file_path(conversation_id)
             if conversation_file.exists():
                 conversation_file.unlink()
             
-            # Remove from metadata
             all_metadata = self._load_metadata()
             if conversation_id in all_metadata:
                 del all_metadata[conversation_id]
                 self._save_metadata(all_metadata)
             
-            # Clear current if deleted
             if self.current_conversation_id == conversation_id:
                 self.current_conversation_id = None
             
@@ -286,7 +261,6 @@ class ConversationStorage:
             all_metadata[conversation_id].name = new_name
             all_metadata[conversation_id].updated_at = datetime.now().isoformat()
             
-            # Update the conversation file too
             conversation_file = self._conversation_file_path(conversation_id)
             if conversation_file.exists():
                 with open(conversation_file, 'r') as f:

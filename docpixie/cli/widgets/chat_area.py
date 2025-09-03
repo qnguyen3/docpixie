@@ -20,7 +20,6 @@ class ChatArea(ScrollableContainer):
     instead of just appending like RichLog
     """
 
-    # CSS for proper scrolling behavior
     DEFAULT_CSS = """
     ChatArea {
         height: 1fr;
@@ -43,27 +42,22 @@ class ChatArea(ScrollableContainer):
         "hustling",
     ]
 
-    # Spinner frames for animation
     SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Create content container
         self.content_container = Vertical()
 
-        # Content tracking
         self.message_widgets: List[Static] = []
         self.current_processing_widget: Optional[Static] = None
         self.current_plan_widget: Optional[Static] = None
         self.task_widgets: Dict[str, Static] = {}
 
-        # Animation state
         self.processing_timer: Optional[Timer] = None
         self.spinner_tasks: Dict[str, asyncio.Task] = {}
         self.current_verb_index = 0
 
-        # Enable scrolling and focus
         self.can_focus = True
 
     def compose(self):
@@ -83,7 +77,6 @@ class ChatArea(ScrollableContainer):
         self.content_container.mount(widget)
         self.message_widgets.append(widget)
 
-        # Auto scroll to bottom
         self._scroll_to_latest()
 
     def add_assistant_message(self, content: str):
@@ -95,7 +88,6 @@ class ChatArea(ScrollableContainer):
         self.content_container.mount(widget)
         self.message_widgets.append(widget)
 
-        # Auto scroll to bottom
         self._scroll_to_latest()
 
     def add_static_text(self, content: str, classes: str = ""):
@@ -116,7 +108,6 @@ class ChatArea(ScrollableContainer):
         self.message_widgets.append(self.current_processing_widget)
         self._scroll_to_latest()
 
-        # Start spinner animation for processing
         self._start_processing_animation()
 
     def hide_processing_status(self, mark_done: bool = False, final_text: str = "Planning"):
@@ -129,7 +120,6 @@ class ChatArea(ScrollableContainer):
                 done_text.append(f"Done({final_text})", style="green")
                 self.current_processing_widget.update(done_text)
 
-            # Stop animation
             self._stop_processing_animation()
 
             if not mark_done:
@@ -298,7 +288,6 @@ class ChatArea(ScrollableContainer):
 
             while self.current_processing_widget:
                 try:
-                    # Update spinner
                     spinner = self.SPINNER_FRAMES[spinner_index % len(self.SPINNER_FRAMES)]
                     spinner_index += 1
 
@@ -321,7 +310,6 @@ class ChatArea(ScrollableContainer):
                 except Exception:
                     break
 
-        # Start animation task
         task = asyncio.create_task(animate_processing())
         self.spinner_tasks["processing"] = task
 
@@ -340,7 +328,6 @@ class ChatArea(ScrollableContainer):
 
             while task_id in self.task_widgets:
                 try:
-                    # Update spinner
                     spinner = self.SPINNER_FRAMES[spinner_index % len(self.SPINNER_FRAMES)]
                     spinner_index += 1
 
@@ -365,7 +352,6 @@ class ChatArea(ScrollableContainer):
                 except Exception:
                     break
 
-        # Start animation task
         task = asyncio.create_task(animate_task())
         self.spinner_tasks[task_id] = task
 
@@ -387,7 +373,6 @@ class ChatArea(ScrollableContainer):
                 if not task.done():
                     task.cancel()
             except Exception:
-                # Ignore any errors during task cleanup
                 pass
         self.spinner_tasks.clear()
 

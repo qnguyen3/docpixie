@@ -25,30 +25,27 @@ class DocPixieCLI:
         self.docpixie: Optional[DocPixie] = None
         self.indexed_documents: List[Document] = []
         self.conversation_history: List[ConversationMessage] = []
-        self.current_task_plan = None  # Store current task plan for display
+        self.current_task_plan = None
 
     def initialize_docpixie(self) -> bool:
         """Initialize DocPixie with OpenRouter and in-memory storage"""
         try:
-            # Check for API key
             api_key = os.getenv("OPENROUTER_API_KEY")
             if not api_key:
                 print("❌ Error: OPENROUTER_API_KEY environment variable not set")
                 print("Please set it with: export OPENROUTER_API_KEY='your-api-key'")
                 return False
 
-            # Configure DocPixie
             config = DocPixieConfig(
                 provider="openrouter",
                 model="openai/gpt-5-mini",
                 vision_model="openai/gpt-4.1",
                 storage_type="memory",
                 openrouter_api_key=api_key,
-                jpeg_quality=85,  # Slightly lower quality for faster processing
-                max_pages_per_task=4  # Limit pages per task for efficiency
+                jpeg_quality=85,
+                max_pages_per_task=4
             )
 
-            # Initialize DocPixie
             self.docpixie = DocPixie(config=config)
             print("✅ DocPixie initialized with OpenRouter (Gemini 2.5 Flash)")
             return True
@@ -59,12 +56,10 @@ class DocPixieCLI:
 
     def scan_documents(self) -> List[Path]:
         """Scan the documents folder for PDF files"""
-        # Create documents folder if it doesn't exist
         if not self.documents_folder.exists():
             self.documents_folder.mkdir(parents=True)
             print(f"📁 Created documents folder: {self.documents_folder.absolute()}")
 
-        # Find all PDF files
         pdf_files = list(self.documents_folder.glob("*.pdf"))
 
         if not pdf_files:
@@ -89,7 +84,6 @@ class DocPixieCLI:
             try:
                 print(f"\n📄 Processing ({i}/{len(pdf_files)}): {pdf_file.name}")
 
-                # Add document to DocPixie
                 document = self.docpixie.add_document_sync(
                     file_path=str(pdf_file),
                     document_name=pdf_file.stem
@@ -141,7 +135,6 @@ class DocPixieCLI:
                     pages_str = ", ".join(str(p) for p in page_nums)
                     output.append(f"  • {doc_name}: Pages {pages_str}")
         elif result.page_numbers:
-            # Fallback to old format if method not available
             output.append(f"\n📄 Analyzed pages: {result.page_numbers}")
 
         if result.confidence > 0:
@@ -160,15 +153,13 @@ class DocPixieCLI:
         print("="*60)
 
         for task in plan.tasks:
-            # Determine status icon
             if task.status == TaskStatus.COMPLETED:
                 icon = "✅"
             elif task.status == TaskStatus.IN_PROGRESS:
                 icon = "⏳"
-            else:  # PENDING
+            else:
                 icon = "⏸️ "
 
-            # Get document name if available
             doc_info = ""
             if task.document:
                 doc = next((d for d in self.indexed_documents if d.id == task.document), None)
@@ -192,7 +183,6 @@ class DocPixieCLI:
             plan = data['plan']
             self.current_task_plan = plan
 
-            # Get document name
             doc_info = ""
             if task.document:
                 doc = next((d for d in self.indexed_documents if d.id == task.document), None)
@@ -235,10 +225,8 @@ class DocPixieCLI:
 
         while True:
             try:
-                # Get user input
                 user_input = input("\n👤 You: ").strip()
 
-                # Check for commands
                 if not user_input:
                     continue
 
@@ -251,20 +239,16 @@ class DocPixieCLI:
                     print("\n🔄 Started new conversation")
                     continue
 
-                # Process the query
                 print("\n⏳ Processing query...")
 
-                # Query with conversation history and task updates
                 result = self.docpixie.query_sync(
                     question=user_input,
                     conversation_history=self.conversation_history,
                     task_update_callback=self.task_update_callback
                 )
 
-                # Display the result
                 print(self.format_answer(result))
 
-                # Update conversation history
                 self.conversation_history.append(
                     ConversationMessage(role="user", content=user_input)
                 )
@@ -272,7 +256,6 @@ class DocPixieCLI:
                     ConversationMessage(role="assistant", content=result.answer)
                 )
 
-                # Limit conversation history to last 10 turns
                 if len(self.conversation_history) > 20:
                     self.conversation_history = self.conversation_history[-20:]
 
@@ -289,16 +272,13 @@ class DocPixieCLI:
         print("\n🧚 DocPixie CLI - Document Chat Interface")
         print("="*60)
 
-        # Initialize DocPixie
         if not self.initialize_docpixie():
             return 1
 
-        # Scan for documents
         pdf_files = self.scan_documents()
         if not pdf_files:
             return 1
 
-        # Ask user to confirm indexing
         print(f"\n❓ Index these {len(pdf_files)} document(s)? (y/n): ", end="")
         response = input().strip().lower()
 
@@ -306,11 +286,9 @@ class DocPixieCLI:
             print("📭 Indexing cancelled")
             return 0
 
-        # Index documents
         if not self.index_documents(pdf_files):
             return 1
 
-        # Start chat loop
         self.chat_loop()
 
         return 0

@@ -78,7 +78,6 @@ class DocPixieCommandPalette(Container):
     }
     """
     
-    # Define all available commands
     COMMANDS = [
         CommandItem("/new", "Start a new conversation (Ctrl+N)"),
         CommandItem("/conversations", "Switch between conversations (Ctrl+L)"),
@@ -113,8 +112,6 @@ class DocPixieCommandPalette(Container):
         self._update_commands(filter_text)
         self.add_class("visible")
         
-        # Don't focus the ListView - keep focus on input field
-        # This allows continued typing while palette is visible
     
     def hide(self):
         """Hide the command palette"""
@@ -127,7 +124,6 @@ class DocPixieCommandPalette(Container):
         self.current_filter = filter_text
         self._update_commands(filter_text)
         
-        # Update filter display
         filter_display = self.query_one("#filter-display", Static)
         if filter_text:
             filter_display.update(f"Filter: {filter_text}")
@@ -136,7 +132,6 @@ class DocPixieCommandPalette(Container):
     
     def _update_commands(self, filter_text: str):
         """Update the displayed commands based on filter"""
-        # Filter commands
         if filter_text:
             self.filtered_commands = [
                 cmd for cmd in self.COMMANDS
@@ -145,16 +140,13 @@ class DocPixieCommandPalette(Container):
         else:
             self.filtered_commands = self.COMMANDS.copy()
         
-        # Reset selection
         self.selected_index = 0
         
-        # Update ListView
         list_view = self.query_one("#command-list", ListView)
         list_view.clear()
         
         self.command_items = []
         for i, cmd in enumerate(self.filtered_commands):
-            # Create rich text for the command item
             command_text = Text()
             command_text.append(cmd.command, style="bold #ff99cc")
             command_text.append(" - ", style="dim")
@@ -164,24 +156,18 @@ class DocPixieCommandPalette(Container):
             list_view.append(list_item)
             self.command_items.append(list_item)
         
-        # Highlight first item immediately if available
         if self.command_items and len(self.command_items) > 0:
-            # Ensure selected_index is valid
             self.selected_index = 0
-            # Force immediate highlight
             self.command_items[0].add_class("command-item-selected")
     
     def _highlight_selected(self):
         """Highlight the currently selected command"""
-        # Remove previous highlights
         for item in self.command_items:
             item.remove_class("command-item-selected")
         
-        # Highlight current selection
         if 0 <= self.selected_index < len(self.command_items):
             self.command_items[self.selected_index].add_class("command-item-selected")
             
-            # Scroll to selected item
             list_view = self.query_one("#command-list", ListView)
             list_view.scroll_to_widget(self.command_items[self.selected_index])
     
@@ -211,7 +197,6 @@ class DocPixieCommandPalette(Container):
             return selected.command
         return None
     
-    # Key handling removed - now handled at app level to maintain input focus
 
 
 class CommandSelected(Message):
