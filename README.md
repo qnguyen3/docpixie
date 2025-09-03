@@ -2,6 +2,8 @@
 
 A lightweight multimodal RAG (Retrieval-Augmented Generation) library that uses vision AI instead of traditional embeddings or vector databases. DocPixie processes documents as images and uses vision language models for both document understanding and intelligent page selection.
 
+![DocPixie Demo](screenshot.png)
+
 ## 🌟 Features
 
 - **Vision-First Approach**: Documents processed as images using PyMuPDF, preserving visual information and formatting
@@ -17,14 +19,16 @@ A lightweight multimodal RAG (Retrieval-Augmented Generation) library that uses 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/qnguyen3/docpixie.git
+# use uv (recommended)
+uv pip install docpixie
 
-# Install dependencies
-pip install -r requirements.txt
+# or pip
+pip install docpixie
+```
 
-# Or use uv (recommended)
-uv pip install -r requirements.txt
+Try the CLI:
+```bash
+docpixie
 ```
 
 ### Basic Usage
@@ -55,7 +59,7 @@ asyncio.run(main())
 Start the interactive terminal interface:
 
 ```bash
-python -m docpixie.cli
+docpixie
 ```
 
 The CLI provides:
@@ -132,22 +136,6 @@ DocPixie uses a clean, modular architecture:
 - **Document Q&A**: Interactive questioning of PDFs, contracts, and manuals
 - **Content Discovery**: Find specific information across large document collections
 - **Visual Document Processing**: Handle documents with charts, diagrams, and complex layouts
-
-## 🔧 Development
-
-### Setup Development Environment
-
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run tests
-python -m pytest tests/ -v
-```
 
 ## 🌍 Environment Variables
 

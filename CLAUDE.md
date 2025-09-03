@@ -13,35 +13,13 @@ DocPixie is a lightweight multimodal RAG library that uses vision AI instead of 
 # Set up virtual environment with uv (recommended)
 uv venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
 
-# Or with pip
-pip install -r requirements.txt
+uv pip install docpixie
 ```
 
-### Testing
+Start the CLI:
 ```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run specific test file
-python -m pytest tests/test_basic.py -v
-
-# Run single test method
-python -m pytest tests/test_basic.py::TestDocPixieConfig::test_default_config -v
-```
-
-### Running Examples
-```bash
-# Set API key first
-export OPENAI_API_KEY="your-key"
-# or
-export ANTHROPIC_API_KEY="your-key"
-# or
-export OPENROUTER_API_KEY="your-key"
-
-# Run basic usage example
-python examples/basic_usage.py
+docpixie
 ```
 
 ## Core Architecture
